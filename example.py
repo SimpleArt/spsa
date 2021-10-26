@@ -11,7 +11,7 @@ def spsa(
     lr: float = None,
     lr_decay: float = 1e-3,
     lr_power: float = 0.5,
-    lr_min: float = 1e-8,
+    lr_min: float = 1e-7,
     lr_max: float = 1e-1,
     px: float = 3e-4,
     px_decay: float = 1e-2,
@@ -102,7 +102,7 @@ def spsa(
         # Restart the cycles.
         if i < 1:
             # Tune the learning rate and perturbations.
-            lr *= min(0.5, 1.414, key=lambda lr: f(x - lr * gx))
+            lr *= min(0.875, 1.0625, key=lambda lr: f(x - lr * gx))
             px *= 0.9
             # Reset gradient momentum estimates.
             gx = np.zeros(x.shape, dtype=float)

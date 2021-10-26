@@ -97,17 +97,26 @@ def spsa(
     # Initial gradient momentum setup.
     gx = np.zeros(x.shape, dtype=float)
     w = 0.0
+    # Track previous x and f(x) used to check if the learning rate should be heavily penalized.
+    x_prev = x.copy()
+    y_prev = f(x)
     for i in range(iterations):
         i %= iterations / cycles
         # Restart the cycles.
         if i < 1:
             # Tune the learning rate and perturbations.
-            lr *= min(0.875, 1.0625, key=lambda lr: f(x - lr * gx))
+            if y_prev < f(x):
+                x = x_prev.copy()
+                lr /= 2
+            else:
+                lr *= min(0.875, 1.0625, key=lambda lr: f(x - lr * gx))
             px *= 0.9
             # Reset gradient momentum estimates.
             gx = np.zeros(x.shape, dtype=float)
             w = 0.0
             print(f"lr = {lr};  \tf(x) = {f(x)}")
+            x_prev = x.copy()
+            y_prev = f(x)
         # Perturb and update the gradient estimate.
         dx = px / (1 + px_decay * i) ** px_power * np.random.choice([-1, 1], x.shape)
         gx += (1 - momentum) * ((f(x + dx) - f(x - dx)) / (2 * dx) - gx)

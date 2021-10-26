@@ -11,6 +11,8 @@ def spsa(
     lr: float = None,
     lr_decay: float = 1e-3,
     lr_power: float = 0.5,
+    lr_min: float = 1e-8,
+    lr_max: float = 1e-1,
     px: float = 3e-4,
     px_decay: float = 1e-2,
     px_power: float = 0.161,
@@ -40,6 +42,9 @@ def spsa(
         lr_power:
             Controls how fast the lr decays by exponentiating of the number of iterations.
             When 0, the lr does not change at all during the iterations.
+        lr_min:
+        lr_max:
+            The minimum and maximum allowed initial learning rates.
         px:
             The perturbation size controls how much x is perturbed to estimate the gradient according to the following formula:
                 dx = px * random_signs
@@ -80,11 +85,13 @@ def spsa(
             gx += (f(x + dx) - f(x - dx)) / (2 * dx)
         gx /= N
         # Estimate the learning rate.
-        lr = 1e-5 / (np.linalg.norm(gx) + 1e-7)
+        lr = np.clip(1e-5 / (np.linalg.norm(gx) + 1e-7), lr_min, lr_max)
+        print(f"lr = {lr}")
         # Apply a simple line search to find a decent lr estimate.
         for factor in (0.5, 2, 0.707, 1.414):
             while f(x - lr * gx) > f(x - factor * lr * gx):
                 lr *= factor
+        lr = np.clip(lr, lr_min, lr_max)
         x -= lr * gx
         lr *= 0.5
     # Initial gradient momentum setup.
@@ -164,7 +171,7 @@ def loss_setup(
     return loss
 
 def main(
-    N: int = 300,
+    N: int = 1000,
     L: int = 50,
     H: int = 200,
     A: np.ndarray = None,
@@ -180,8 +187,16 @@ def main(
         B = np.random.uniform(0, H, N)
     if K is None:
         K = tuple(np.random.uniform(0, 10, 4))
+    # Use a heuristic estimate of the solution.
     if x is None:
-        x = np.random.normal(size=N)
+        x = np.zeros(N, dtype=float)
+        indexes = list(range(N))
+        indexes.sort(key=lambda ind: A[ind], reverse=True)
+        for ind, dx in zip(indexes, (10, 5, 3, 1)):
+            x[ind] -= dx
+        indexes.sort(key=lambda ind: B[ind])
+        for ind, dx in zip(indexes, (10, 5, 3, 1)):
+            x[ind] += dx
     # Setup the loss function.
     loss = loss_setup(L, H, A, B, K)
     # Print the final loss value.

@@ -11,9 +11,9 @@ def spsa(
     lr: float = None,
     lr_decay: float = 1e-3,
     lr_power: float = 0.5,
-    lr_min: float = 1e-7,
+    lr_min: float = 1e-10,
     lr_max: float = 1e-1,
-    px: float = 3e-4,
+    px: float = 1e-5,
     px_decay: float = 1e-2,
     px_power: float = 0.161,
     momentum: float = 0.9,
@@ -86,7 +86,6 @@ def spsa(
         gx /= N
         # Estimate the learning rate.
         lr = np.clip(1e-5 / (np.linalg.norm(gx) + 1e-7), lr_min, lr_max)
-        print(f"lr = {lr}")
         # Apply a simple line search to find a decent lr estimate.
         for factor in (0.5, 2, 0.707, 1.414):
             while f(x - lr * gx) > f(x - factor * lr * gx):
@@ -201,11 +200,11 @@ def main(
         x = np.zeros(N, dtype=float)
         indexes = list(range(N))
         indexes.sort(key=lambda ind: A[ind], reverse=True)
-        for ind, dx in zip(indexes, (10, 5, 3, 1)):
-            x[ind] -= dx
+        for i, ind in enumerate(indexes, start=1):
+            x[ind] -= 5 / i
         indexes.sort(key=lambda ind: B[ind])
-        for ind, dx in zip(indexes, (10, 5, 3, 1)):
-            x[ind] += dx
+        for i, ind in enumerate(indexes, start=1):
+            x[ind] += 5 / i
     # Setup the loss function.
     loss = loss_setup(L, H, A, B, K)
     # Print the final loss value.

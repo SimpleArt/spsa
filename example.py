@@ -107,8 +107,10 @@ def spsa(
             if y_prev < f(x):
                 x = x_prev.copy()
                 lr /= 2
+            elif f(x - 2 * lr * gx) < f(x - 0.5 * lr * gx):
+                lr *= 1.0625
             else:
-                lr *= min(0.875, 1.0625, key=lambda factor: f(x - factor * lr * gx))
+                lr *= 0.875
             px *= 0.9
             # Reset gradient momentum estimates.
             gx = np.zeros(x.shape, dtype=float)

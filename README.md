@@ -1,5 +1,103 @@
-A simple implementation of SPSA in Python with automatic learning rate tuning.
+Simultaneous Perturbation Stochastic Optimization (SPSA)
 
-View example.py to see the code.
+The purpose of this package is to provide multivariable optimizers
+using SPSA. Although other optimizers exist, not many implement
+SPSA, which has a variant of pros and cons. Additionally, SPSA has
+few requirements so that you don't have to install large packages
+like scipy optimize a function.
 
-To try it yourself without downloading anything, you can use the [Try It Online](https://tio.run/##vVlrb9tGFv2uXzFIsQAV07QkW5HlrQLIQRYOnDUCx8V@cL32mBxJg5IcgkPaVIv@9uy5M3yKcuMWuysgITmPO/d9zx0n22yj4uNvq1RFLOLZhskoUWnGfKVdlshB@RnnUbJlXLM4GZi12TaR8bpa/YGHIX8Mhctu8oQeP8VSxYPBDyxUWjs8Tfl2yA7fs1WoeOYNPmP0H3nsZ1jFFvX229s48eLALL9z7eK7b4FYMZ1o7gwYfqsz1t7tmsHijDU77VCYnlkCoH@lYlGN3gfC59tmbiwOj@u5RD2L1r6RN62nIhl3No1HzRQvulN2JumOTqvRPRxM6rkeB@N3JblIRSLO8qg9ObdTMhMpJ23oMyZjQ3OEn530t34oWhPuoLHEmVnx5s0b8/wUwXZ0iKHF1Ip9/fJ1yZ4l3KI6nfE4YKHgaUzmx6mCpUKLTHsDQ@MLT3kkwI82n4fNz3xbC9av9LvZCLaqfOFREFmVZDKSv4rAM64hAvK8h9WuHz14NaGiT1PGMpM8ZIkiyXNN1G42UrMnHuaY1kwEUFxgJEpFlqcxltRk4D8dkp9WLFY7koPGWj6J2GXZRsSMMz/NA8GEBvvl/ErlIJ9r2hPKWDANCv7G67HbpeyrOEtVqIkwnF@ATZgDo08iXYvYF4z7vkoD2pAps2qlwlA908BKpVEe8i7/RkvscAHB2Fu2TnkgYdD7itfv8ANJAh4lIiZGwAPDLsGeJGfGmY0Ojev@Jb7A0hFzxuygjk@w6OdpShzWzj1kb9/WQdqh8a9S@@TpTMSBNgbpi5DlxP/jFkYwfiZXCB2mNyoPMSxYoPJH8jaVsg0Pn7ruUIZt5@APlZk26pmtuM7suanViqajIHEmk3BrNIJJZNJHqEmtWlHr9aUZuTUpJZB2FVLyhsdrGD5jiAkW5GlFch@hOpn9WX5FkSBbxgidzITi6v/MNeXZzjffE9tYJKMyGWGBfSc3g/GquO9Yv3VGsodeIlLE/6PNexqZpwlA0lSU@xsEDzyoXIhj4N11nJM4VUT9pQAICqTmpIDXpxBJRfdarmPdZ7P4HwciDigDsSpTLwZiVateE4h99ZIYwk8F1zYgObzRz5TxsAfUtYe2vXYjry6TnbO/CtGkD1OlyhBg/BGaagjWhbSz/aKyc@nxSSqepMp1bWVdzTSWToWpKwxSCY6ttYb66b2un5Cch1rZqklhYTJ8xoGiQN@QMeprSLSqe4/svrgkH/LYtcrXm3BrE9lODNflVlAt3A3CEjD8wVl2xU4UG3XoJERGzRNCG6qrhY@1aJA6E1GSaeOZyMlV0jDOW5hHS0dZW33Y4VNk4wDyYutSmVJMhUEJQa5NLe/ijz8CCpWBgzqtkIoqPIN8lXVovYgQ@lXzNdZdOcWwT6eMOQOfS8CS0u6qJFWQ7Qf2sZ2EOsfblahx0Cy8jkBwc9DOxsqnG77WlJIAqn8VqdJO4ekNT8Swnr4yWLKRAqF7D5uQ762Fc7UjUpPfQNGmOM/fKOkL5xZwmY2B9ntHlFwcLJgDJSEnBQWwHykM/@N9SLlqApp4b7N9BMD/kpx7FFQCECOsH8rEIaxOpPENxMbDtRfD05w1Tj8gsD4bumWhcssCNWwdt0xQ7JHPtCQ03cZ85LsrSb5Nuc9YN62dz@uoskyG0KdDPQibuAD7s9EMmvJOxic72n3eSJxk9WLRHVh9Xw6UpN7WM3vh19tFuXC/SsL0ZZFboLIYdEmC99JLP5VFuc6ddUAjwvPESr/X5VwWoNcUC4P47anPpvcZlaRvUu7/0qRrmz4oqmxupoSxEVghV3tAYYP9NoI/SVgOpZWHpvewneU9UcaBheerZOtYDrbVKJ0zqKwmmwBo0mJL35L9bdFOmEdlIm15z7WwyYI4tZOtOoAkz35k464BoYA6g3aTDyXTVuHdwWugVkrx454cZA27KMVvi76L2xds0hkXIShb15u0vM6egkH4xCucceyN3k2mO4S1eGn5yDuddVdTsjEd8o6yrk1J6bthXeW93fzzKpesQ7HlmjUrVEKc1RsTUb@F6e9/Z@znzHgovun5@5sulf1OV/36zmdF@2KNbQyfJ0EPmPZTTZWW@5hPdjDen8vbZc4ew9iVekGNOd/P4hhZt0R63k@HBp7bgv/UCKtVmBtIUHi9BNVvMWWnpTQeiVXPZqe9EWDFYED3T2gHdJZyGBLJL3G6902o0s9n9srr1viEyzr3WBu53rw8b@4zmu/ulcw1h1QA@WiigKeRZHyK74YbAOytypmPaYkxwakfStj1v2ODwIxOTEYi@JEATEg0uBZQaLMzEFqmpUu84u5mBz4tgfaJaXOG6SzobvAQ2Izy7gGerRoLJdUfRiU91FNzWjIIsTPbd0GoxCRz7/sQT7/AY0O3wy34ImaJI0v8Y8GpdO8n/k@eaHZ7iJp8eOIyz/NcduyykzvWUbYzou/xaNiIb5oAmIZM9UiQQBBuNa/bCFpPpU@NSp6xB6eAVSk5OOinHfB3QMwNjybDh5qc6XwVGmyguqqVgkjNee/fv9/1WjgZt@WJ@J8CxoA@mGyIkp6c27k3Pz4ezcYnc5fNvdPJaHw8mzN6n06ms5PxBDjk1DsdzeaAJKcum3nH49H0dDorryNbv6lXvQHEeO9O50AvE0oc3ng@GU3mE4NsTmYnk@np7Jjex7P56bvJmN0NO4FQhiMZ68DYqgpnCCUKRORwaCOVEPO9ARX2vvizufm0jF203pf9K@Pz/tDlmb3RruJ2z@OuvFBt30rXQfwBdsnKVslg@br1IsBg0jNdIKJGKARmVF4U2v5TPckAPr9BqUkPkzo2vUollbTdbLR7uVsyctNjYPeqtSJrcyr8HJG3x6kvWj6t4aO7mdE41UU7PV@IMKEunLhrlVe9xG4NCy6bofNy6LwpUdoW4ECuVo5uyAadiUC3D7xpq88KbS88msNLd3I6/np5O7qjAqOXHhCuQ@VIn3sAvc6wW4EPsHRcLr09@3zXWm4/92@Z3NlCyh81cezpPHL6q44N4WoZ1lGNGnvT3fXDblxobf0/gimsWFftPwa4rWDA0HTUjggMTKolnbjo/O3k/MWZ10RJZ0Oxl5Rx3aZNhUNe50jeqHw2I3tN1/uVAry8LGPLo/Ojy6Oi7neX/XZ3aZ2lhDB5LMkjKL1euOxqWG087288f9XGy/7GS2zMSCnO3u1j/DspfQQIRgOvowXJUwmQ5jc3i@WVUwVrahGL/oEdpHr1AkZF@ykKQaET4iSn6tZ7Czyt0sz5RWwXIY8eA07jZ2x5iwcADeAnEpFY3KR5C/eZFsilldQHiTiPqNNBL2RJuvYeZDHeAf2FIUoYjbpu@TpOzs2m/9bZB@2zK@fqpWyrfDO0aJeZz8YZli47d9llZVFzb2SvXekOoXWRY8nUTYFJ4KYTMK/mD530BmA9rBuDV@Tj7@XiNks1SjZ/neoyRHR@jn/TOPqbySXDb/8B) link.
+Usage
+------
+Synchronous Functions:
+
+```python
+x = spsa.optimize(f, x)
+x = spsa.optimize(spsa.maximize(f), x)  # For maximization.
+
+for variables in spsa.optimize_iterator(f, x):
+    print(variables)
+```
+
+Asynchronous Functions:
+
+```python
+x = await spsa.aio.optimize(f, x)
+x = await spsa.aio.optimize(spsa.aio.maximize(f), x)  # For maximization.
+
+async for variables in spsa.aio.optimize(f, x):
+    print(variables)
+```
+
+Example
+--------
+
+```python
+import numpy as np
+import spsa
+
+# Sample function which has a minimum at 0.
+def sphere(x: np.ndarray) -> float:
+    return np.linalg.norm(x) ** 2
+
+# Attempt to find the minimum.
+print(spsa.optimize(sphere, [1, 2, 3]))
+# Sample result:
+#     [-5.50452777e-21 -9.48070248e-21  9.78726993e-21]
+```
+
+Pros & Cons
+------------
+A comparison of SPSA, Gradient Descent, and Bayesian Optimization are shown below.
+
+Calls per Iteration:
+    SPSA:
+        5 calls for the objective function per iteration,
+        including a line search implementation.
+    Gradient Descent:
+        1 call for the gradient per iteration.
+    Bayesian Optimization:
+        N call for the objective function per iteration,
+        for some constant N.
+
+Stochastic (noisy/random functions):
+    SPSA:
+        Requires stochastic objective function.
+    Gradient Descent:
+        Requires stochastic gradient.
+    Bayesian Optimization:
+        Requires stochastic objective function.
+
+Convergence:
+    SPSA:
+        Localized convergence, similar to gradient descent.
+    Gradient Descent:
+        Localized convergence.
+    Bayesian Optimization:
+        Globalized convergence, sampling a large variety of points.
+
+Dimensionality:
+    SPSA:
+        Works well for high-dimensional problems,
+        similar to gradient descent.
+    Gradient Descent:
+        Works well for high-dimensional problems.
+    Bayesian Optimization:
+        Struggles for large search spaces.
+
+Complexity:
+    SPSA:
+        Only about 100 lines of code.
+    Gradient Descent:
+        Only about 10 lines of code, more complex
+        variants like Adam may require a bit more.
+    Bayesian Optimization:
+        Requires >100 lines of code, mostly to implement the
+        Gaussian processes.
+
+Integer Optimization:
+    SPSA:
+        Use f(round(x)) as the objective function and `px=0.5, px_decay=0`.
+    Gradient Descent:
+        Not applicable.
+    Bayesian Optimization:
+        Use a different Gaussian process than real optimization.

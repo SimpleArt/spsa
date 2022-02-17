@@ -55,7 +55,7 @@ def optimize(
     px_power: float = 0.161,
     momentum: float = 0.97,
     beta: float = 0.999,
-    epsilon: float = 1e-7
+    epsilon: float = 1e-7,
 ) -> np.ndarray:
     """
     Implementation of the SPSA optimization algorithm with adaptive momentum (Adam) and learning rate tuning (line search).
@@ -225,7 +225,7 @@ def optimize_iterator(
     px_power: float = 0.161,
     momentum: float = 0.97,
     beta: float = 0.999,
-    epsilon: float = 1e-7
+    epsilon: float = 1e-7,
 ) -> Iterator[OptimizerVariables]:
     """
     A generator which yields a dict of variables each iteration.

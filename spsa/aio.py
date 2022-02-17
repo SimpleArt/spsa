@@ -73,7 +73,7 @@ async def optimize(
     px_power: float = 0.161,
     momentum: float = 0.97,
     beta: float = 0.999,
-    epsilon: float = 1e-7
+    epsilon: float = 1e-7,
 ) -> np.ndarray:
     """
     An asynchronous optimizer accepting asynchronous functions.
@@ -203,7 +203,7 @@ async def optimize_iterator(
     px_power: float = 0.161,
     momentum: float = 0.97,
     beta: float = 0.999,
-    epsilon: float = 1e-7
+    epsilon: float = 1e-7,
 ) -> AsyncIterator[OptimizerVariables]:
     """
     An asynchronous generator accepting asynchronous functions.

@@ -49,55 +49,17 @@ Pros & Cons
 ------------
 A comparison of SPSA, Gradient Descent, and Bayesian Optimization are shown below.
 
-Calls per Iteration:
-    SPSA:
-        5 calls for the objective function per iteration,
-        including a line search implementation.
-    Gradient Descent:
-        1 call for the gradient per iteration.
-    Bayesian Optimization:
-        N call for the objective function per iteration,
-        for some constant N.
+|  | SPSA | Gradient Descent | Bayesian Optimization |
+| :--- | :---: | :---: | :---: |
+| Calls per Iteration | Constant<sup>[1]</sup> f(x) | 1 fprime(x) | Constant f(x) |
+| Stochastic | Stochastic f | Stochastic fprime | Stochastic f |
+| Convergence | Local | Local | Global |
+| Dimensions | Any | Any | <20 |
+| Lines of Code | ~100 | 10-100 | >100 |
+| Integer Optimization | Applicable<sup>[2]</sup> | Inapplicable | Applicable<sup>[3]</sup> |
 
-Stochastic (noisy/random functions):
-    SPSA:
-        Requires stochastic objective function.
-    Gradient Descent:
-        Requires stochastic gradient.
-    Bayesian Optimization:
-        Requires stochastic objective function.
+[1]: Normally requires only 2 calls, but linear search requires a few extra calls.
 
-Convergence:
-    SPSA:
-        Localized convergence, similar to gradient descent.
-    Gradient Descent:
-        Localized convergence.
-    Bayesian Optimization:
-        Globalized convergence, sampling a large variety of points.
+[2]: Use f(round(x)), px=0.5, and px_decay=0.
 
-Dimensionality:
-    SPSA:
-        Works well for high-dimensional problems,
-        similar to gradient descent.
-    Gradient Descent:
-        Works well for high-dimensional problems.
-    Bayesian Optimization:
-        Struggles for large search spaces.
-
-Complexity:
-    SPSA:
-        Only about 100 lines of code.
-    Gradient Descent:
-        Only about 10 lines of code, more complex
-        variants like Adam may require a bit more.
-    Bayesian Optimization:
-        Requires >100 lines of code, mostly to implement the
-        Gaussian processes.
-
-Integer Optimization:
-    SPSA:
-        Use f(round(x)) as the objective function and `px=0.5, px_decay=0`.
-    Gradient Descent:
-        Not applicable.
-    Bayesian Optimization:
-        Use a different Gaussian process than real optimization.
+[3]: Use a different Gaussian process.

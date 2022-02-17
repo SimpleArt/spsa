@@ -81,6 +81,9 @@ def optimize(
 
                 lr = lr_start / (1 + lr_decay * iteration) ** lr_power
                 x -= lr * gradient_estimate
+
+            Furthermore, the learning rate is automatically tuned every iteration to produce
+            improved convergence and allow flexible learning rates.
         px:
         px_decay:
         px_power:

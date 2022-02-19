@@ -57,9 +57,12 @@ A comparison of SPSA, Gradient Descent, and Bayesian Optimization are shown belo
 | Dimensions | Any | Any | <20 |
 | Lines of Code | ~100 | 10-100 | >100 |
 | Integer Optimization | Applicable<sup>[2]</sup> | Inapplicable | Applicable<sup>[3]</sup> |
+| Parallel Calls | Applicable<sup>[4]</sup> | Not Obvious | Applicable |
 
-[1]: Normally requires only 2 calls, but linear search requires a few extra calls.
+[1]: Normally requires only 2 calls, but linear search and noise-adjusting perturbation sizes require a few extra calls per iteration.
 
 [2]: Use f(round(x)), px=0.5, and px_decay=0.
 
 [3]: Use a different Gaussian process.
+
+[4]: See `spsa.aio`.

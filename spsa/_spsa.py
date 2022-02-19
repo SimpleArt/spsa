@@ -1,6 +1,10 @@
+import operator
+import random
+
 from functools import wraps
-from math import isinf, isnan, isqrt
-from typing import Any, AsyncIterator, Awaitable, Callable, Iterator, Optional, Sequence, TypedDict, Union
+from math import isinf, isnan, isqrt, sqrt
+from typing import Any, AsyncIterator, Awaitable, Callable, Iterator, Optional, Sequence, SupportsIndex, TypedDict, Union
+
 import numpy as np
 
 __all__ = ["maximize", "optimize", "optimize_iterator"]
@@ -19,11 +23,13 @@ OptimizerVariables = TypedDict(
     x=np.ndarray,
     y=float,
     lr=float,
+    beta_noise=float,
     beta1=float,
-    beta2=float,
+    beta2=Optional[float],
+    noise=float,
     gradient=np.ndarray,
-    slow_gradient=np.ndarray,
-    square_gradient=np.ndarray,
+    slow_gradient=Optional[np.ndarray],
+    square_gradient=Optional[np.ndarray],
 )
 
 def maximize(f: Callable[[np.ndarray], float], /) -> Callable[[np.ndarray], float]:
@@ -50,7 +56,7 @@ def optimize(
     lr: Optional[float] = None,
     lr_decay: float = 1e-3,
     lr_power: float = 0.5,
-    px: float = 3e-4,
+    px: Optional[float] = None,
     px_decay: float = 1e-2,
     px_power: float = 0.161,
     momentum: float = 0.97,
@@ -87,14 +93,17 @@ def optimize(
         px:
         px_decay:
         px_power:
+            If no px is given, then a crude estimate is found based on the noise in f.
+
             The perturbation size controls how large of a change in x is used to measure changes in f.
-            Larger perturbations produce more global convergence at the cost of local convergence.
-            Smaller perturbations produce more local convergence at the cost of global convergence.
 
                 px = px_start / (1 + px_decay * iteration) ** px_power
                 dx = px * random_signs
                 df = (f(x + dx) - f(x - dx)) / 2
                 gradient ~ df / dx
+
+            Furthermore, the perturbation size is automatically tuned every iteration to produce
+            more accurate gradient approximations, reducing chaotic behavior.
         momentum:
             The momentum controls how much of the gradient is kept from previous iterations.
         beta:
@@ -115,14 +124,22 @@ def optimize(
         raise TypeError(f"x must be either a numpy array or a sequence, got {x!r}")
     elif not isinstance(iterations, int):
         raise TypeError(f"iterations must be an integer, got {iterations!r}")
-    names = ("lr_decay", "lr_power", "px", "px_decay", "px_power", "momentum", "beta", "epsilon")
-    values = (lr_decay, lr_power, px, px_decay, px_power, momentum, beta, epsilon)
+    elif not isinstance(adam, SupportsIndex):
+        raise TypeError(f"adam cannot be interpreted as an integer, got {adam!r}")
+    adam = bool(operator.index(adam))
+    names = ("lr_decay", "lr_power")
+    values = (lr_decay, lr_power)
     if lr is not None:
         names = ("lr", *names)
         values = (lr, *values)
+    if px is not None:
+        names = (*names, "px")
+        values = (*values, px)
+    names = (*names, "px_decay", "px_power", "momentum", "beta", "epsilon")
+    values = (*values, px_decay, px_power, momentum, beta, epsilon)
     for name, value in zip(names, values):
-        if not isinstance(value, float):
-            raise TypeError(f"{name} must be a float, got {value!r}")
+        if not isinstance(value, (float, int)):
+            raise TypeError(f"{name} must be real, got {value!r}")
         elif isnan(value):
             raise ValueError(f"{name} must not be nan, got {value!r}")
         elif isinf(value):
@@ -145,13 +162,66 @@ def optimize(
         raise ValueError(f"x must not contain nan")
     elif np.isinf(x).any():
         raise ValueError(f"x must not contain infinity")
-    m1 = 1 - momentum
-    m2 = 1 - beta
+    #---------------------------------------------------------#
+    # General momentum algorithm:                             #
+    #     b(0) = 0                                            #
+    #     f(0) = 0                                            #
+    #     b(n + 1) = b(n) + (1 - beta) * (1 - b(n))           #
+    #     f(n + 1) = f(n) + (1 - beta) * (estimate(n) - f(n)) #
+    #     f(n) / b(n) ~ average(estimate(n))                  #
+    #---------------------------------------------------------#
+    m1 = 1.0 - momentum
+    m2 = 1.0 - beta
+    # Estimate the noise in f.
+    bn = 0.0
+    y = 0.0
+    noise = 0.0
+    for _ in range(isqrt(isqrt(x.size + 4) + 4)):
+        temp = f(x)
+        bn += m2 * (1 - bn)
+        y += m2 * (temp - y)
+        noise += m2 * ((temp - f(x)) ** 2 - noise)
+    # Estimate the perturbation size that should be used.
+    if px is None:
+        px = 3e-4 * (1 + 0.25 * np.linalg.norm(x))
+        for _ in range(3):
+            # Increase `px` until the change in f(x) is signficiantly larger than the noise.
+            while True:
+                # Update the noise.
+                temp = f(x)
+                bn += m2 * (1 - bn)
+                y += m2 * (temp - y)
+                noise += m2 * ((temp - f(x)) ** 2 - noise)
+                # Compute a change in f(x) in a random direction.
+                dx = np.random.default_rng().choice((-1.0, 1.0), x.shape)
+                dx *= px
+                # Stop if sufficiently accurate.
+                if (f(x + dx) - f(x - dx)) ** 2 > 8 * noise / bn:
+                    break
+                # `dx` is dangerously small, so `px` should be increased.
+                px *= 1.2
+            # Attempt to decrease `px` to improve the gradient estimate unless the noise is too much.
+            for _ in range(3):
+                # Update the noise.
+                temp = f(x)
+                bn += m2 * (1 - bn)
+                y += m2 * (temp - y)
+                noise += m2 * ((temp - f(x)) ** 2 - noise)
+                # Compute a change in f(x) in a random direction.
+                dx = np.random.default_rng().choice((-1.0, 1.0), x.shape)
+                dx *= px
+                # Stop if too much noise.
+                if (f(x + dx) - f(x - dx)) ** 2 < 8 * noise / bn:
+                    break
+                # `dx` can be safely decreased, so `px` should be decreased.
+                px /= 1.1
+            # Set a minimum perturbation.
+            px = max(px, epsilon * (1 + 0.25 * np.linalg.norm(x)))
     # Estimate the gradient and its square.
-    b1 = 0
+    b1 = 0.0
     gx = np.zeros_like(x)
     if adam:
-        b2 = 0
+        b2 = 0.0
         slow_gx = np.zeros_like(x)
         square_gx = np.zeros_like(x)
     for _ in range(isqrt(isqrt(x.size + 4) + 4)):
@@ -169,15 +239,14 @@ def optimize(
     # Estimate the learning rate.
     if lr is None:
         lr = 1e-5
-        y = f(x)
+        temp = f(x)
         # Increase the learning rate while it is safe to do so.
         dx = 3 * b2 / b1 * gx
         if adam:
             dx /= np.sqrt(square_gx + epsilon)
         for _ in range(3):
-            while f(x - lr * dx) < y:
+            while f(x - lr * dx) < temp:
                 lr *= 1.4
-        del y
     # Initial step size.
     dx = b2 / b1 * gx / np.sqrt(square_gx + epsilon)
     # Run the number of iterations.
@@ -187,7 +256,8 @@ def optimize(
         # Compute df/dx in at the next point.
         dx = np.random.default_rng().choice((-1.0, 1.0), x.shape)
         dx *= px / (1 + px_decay * i) ** px_power
-        df_dx = (f(x_next + dx) - f(x_next - dx)) * 0.5 / dx
+        df = (f(x_next + dx) - f(x_next - dx)) / 2
+        df_dx = df / dx
         # Update the gradients.
         b1 += m1 * (1 - b1)
         gx += m1 * (df_dx - gx)
@@ -199,16 +269,30 @@ def optimize(
         dx = b2 / b1 / (1 + lr_decay * i) ** lr_power * gx
         if adam:
             dx /= np.sqrt(square_gx + epsilon)
-        # Perform line search.
+        # Estimate the noise in f.
         y1 = f(x)
+        bn += m2 * (1 - bn)
+        y += m2 * (y1 - y)
+        noise += m2 * ((y1 - f(x)) ** 2 - noise)
+        # Update `px` depending on the noise and gradient.
+        # `dx` is dangerously small, so `px` should be increased.
+        if df ** 2 < 2 * noise / bn:
+            px *= 1.2
+        # `dx` can be safely decreased, so `px` should be decreased.
+        elif px > 1e-8 * (1 + 0.25 * np.linalg.norm(x)):
+            px /= 1.1
+        # Perform line search.
         y2 = f(x - lr / 3 * dx)
         y3 = f(x - lr * 3 * dx)
-        if y1 < y2 < y3:
-            lr /= 1.5
-        elif y2 < y1 < y3:
-            lr /= 1.2
-        elif y1 > y3 < y2:
+        # Adjust the learning rate towards learning rates which give good results.
+        if y1 - 0.25 * sqrt(noise / bn) < min(y2, y3):
+            lr /= 1.3
+        if y2 - 0.25 * sqrt(noise / bn) < min(y1, y3):
+            lr *= 1.3 / 1.4
+        if y3 - 0.25 * sqrt(noise / bn) < min(y1, y2):
             lr *= 1.4
+        # Set a minimum learning rate.
+        lr = max(lr, epsilon / (1 + 0.01 * i) ** 0.5 * (1 + 0.25 * np.linalg.norm(x)))
         # Update the solution.
         x -= lr * dx
     return x
@@ -223,7 +307,7 @@ def optimize_iterator(
     lr: Optional[float] = None,
     lr_decay: float = 1e-3,
     lr_power: float = 0.5,
-    px: float = 3e-4,
+    px: Optional[float] = None,
     px_decay: float = 1e-2,
     px_power: float = 0.161,
     momentum: float = 0.97,
@@ -253,22 +337,34 @@ def optimize_iterator(
             lr:
                 The current learning rate (not including decay).
                 NOTE: Updating this value in the dictionary will update in the optimizer.
+            beta_noise:
             beta1:
             beta2:
-                Use gradient / beta1, slow_gradient / beta2, and square_gradient / beta2
-                to get unbiased estimates.
-                On their own, the gradient estimates are closer to 0 than they should be.
+                Used for the formulas
+                    y / beta_noise
+                    sqrt(noise / beta_noise)
+                    gradient / beta1
+                    slow_gradient / beta2
+                    square_gradient / beta2
+                to get unbiased estimates of each variable.
+
+                On their own, the estimates are closer to 0 than they should be
+                and need to be divided by their respective betas for correction.
+
+                If adam is not used, beta2 = None.
+            noise:
+                An estimate for how much noise is in f(x).
+                Used for SPSA.
             gradient:
                 The estimated gradient of f at x.
-                Scaled by beta1.
             slow_gradient:
                 The slower estimate of the gradient of f at x.
                 Biased more towards previous iterations.
-                Scaled by beta2.
+                None if adam is not used.
                 Used for the square_gradient.
             square_gradient:
                 An estimate for the component-wise square of the gradient of f at x.
-                Scaled by beta2.
+                None if adam is not used.
                 Used for the Adam method.
     """
     # Type-check.
@@ -278,14 +374,22 @@ def optimize_iterator(
         raise TypeError(f"x must be either a numpy array or a sequence, got {x!r}")
     elif not isinstance(iterations, int):
         raise TypeError(f"iterations must be an integer, got {iterations!r}")
-    names = ("lr_decay", "lr_power", "px", "px_decay", "px_power", "momentum", "beta", "epsilon")
-    values = (lr_decay, lr_power, px, px_decay, px_power, momentum, beta, epsilon)
+    elif not isinstance(adam, SupportsIndex):
+        raise TypeError(f"adam cannot be interpreted as an integer, got {adam!r}")
+    adam = bool(operator.index(adam))
+    names = ("lr_decay", "lr_power")
+    values = (lr_decay, lr_power)
     if lr is not None:
         names = ("lr", *names)
         values = (lr, *values)
+    if px is not None:
+        names = (*names, "px")
+        values = (*values, px)
+    names = (*names, "px_decay", "px_power", "momentum", "beta", "epsilon")
+    values = (*values, px_decay, px_power, momentum, beta, epsilon)
     for name, value in zip(names, values):
-        if not isinstance(value, float):
-            raise TypeError(f"{name} must be a float, got {value!r}")
+        if not isinstance(value, (float, int)):
+            raise TypeError(f"{name} must be real, got {value!r}")
         elif isnan(value):
             raise ValueError(f"{name} must not be nan, got {value!r}")
         elif isinf(value):
@@ -308,13 +412,66 @@ def optimize_iterator(
         raise ValueError(f"x must not contain nan")
     elif np.isinf(x).any():
         raise ValueError(f"x must not contain infinity")
-    m1 = 1 - momentum
-    m2 = 1 - beta
+    #---------------------------------------------------------#
+    # General momentum algorithm:                             #
+    #     b(0) = 0                                            #
+    #     f(0) = 0                                            #
+    #     b(n + 1) = b(n) + (1 - beta) * (1 - b(n))           #
+    #     f(n + 1) = f(n) + (1 - beta) * (estimate(n) - f(n)) #
+    #     f(n) / b(n) ~ average(estimate(n))                  #
+    #---------------------------------------------------------#
+    m1 = 1.0 - momentum
+    m2 = 1.0 - beta
+    # Estimate the noise in f.
+    bn = 0.0
+    y = 0.0
+    noise = 0.0
+    for _ in range(isqrt(isqrt(x.size + 4) + 4)):
+        temp = f(x)
+        bn += m2 * (1 - bn)
+        y += m2 * (temp - y)
+        noise += m2 * ((temp - f(x)) ** 2 - noise)
+    # Estimate the perturbation size that should be used.
+    if px is None:
+        px = 3e-4 * (1 + 0.25 * np.linalg.norm(x))
+        for _ in range(3):
+            # Increase `px` until the change in f(x) is signficiantly larger than the noise.
+            while True:
+                # Update the noise.
+                temp = f(x)
+                bn += m2 * (1 - bn)
+                y += m2 * (temp - y)
+                noise += m2 * ((temp - f(x)) ** 2 - noise)
+                # Compute a change in f(x) in a random direction.
+                dx = np.random.default_rng().choice((-1.0, 1.0), x.shape)
+                dx *= px
+                # Stop if sufficiently accurate.
+                if (f(x + dx) - f(x - dx)) ** 2 > 8 * noise / bn:
+                    break
+                # `dx` is dangerously small, so `px` should be increased.
+                px *= 1.2
+            # Attempt to decrease `px` to improve the gradient estimate unless the noise is too much.
+            for _ in range(3):
+                # Update the noise.
+                temp = f(x)
+                bn += m2 * (1 - bn)
+                y += m2 * (temp - y)
+                noise += m2 * ((temp - f(x)) ** 2 - noise)
+                # Compute a change in f(x) in a random direction.
+                dx = np.random.default_rng().choice((-1.0, 1.0), x.shape)
+                dx *= px
+                # Stop if too much noise.
+                if (f(x + dx) - f(x - dx)) ** 2 < 8 * noise / bn:
+                    break
+                # `dx` can be safely decreased, so `px` should be decreased.
+                px /= 1.1
+            # Set a minimum perturbation.
+            px = max(px, epsilon * (1 + 0.25 * np.linalg.norm(x)))
     # Estimate the gradient and its square.
-    b1 = 0
+    b1 = 0.0
     gx = np.zeros_like(x)
     if adam:
-        b2 = 0
+        b2 = 0.0
         slow_gx = np.zeros_like(x)
         square_gx = np.zeros_like(x)
     for _ in range(isqrt(isqrt(x.size + 4) + 4)):
@@ -332,24 +489,26 @@ def optimize_iterator(
     # Estimate the learning rate.
     if lr is None:
         lr = 1e-5
-        y = f(x)
+        temp = f(x)
         # Increase the learning rate while it is safe to do so.
         dx = 3 * b2 / b1 * gx
         if adam:
             dx /= np.sqrt(square_gx + epsilon)
         for _ in range(3):
-            while f(x - lr * dx) < y:
+            while f(x - lr * dx) < temp:
                 lr *= 1.4
-    y = f(x)
+    # Generate initial iteration.
     variables = dict(
         x=x,
         y=y,
         lr=lr,
+        beta_noise=bn,
         beta1=b1,
-        beta2=b2,
+        beta2=b2 if adam else None,
+        noise=noise,
         gradient=gx,
-        slow_gradient=slow_gx,
-        square_gradient=square_gx,
+        slow_gradient=slow_gx if adam else None,
+        square_gradient=square_gx if adam else None,
     )
     yield variables
     x = variables["x"]
@@ -364,7 +523,8 @@ def optimize_iterator(
         # Compute df/dx in at the next point.
         dx = np.random.default_rng().choice((-1.0, 1.0), x.shape)
         dx *= px / (1 + px_decay * i) ** px_power
-        df_dx = (f(x_next + dx) - f(x_next - dx)) * 0.5 / dx
+        df = (f(x_next + dx) - f(x_next - dx)) / 2
+        df_dx = df / dx
         # Update the gradients.
         b1 += m1 * (1 - b1)
         gx += m1 * (df_dx - gx)
@@ -376,29 +536,44 @@ def optimize_iterator(
         dx = b2 / b1 / (1 + lr_decay * i) ** lr_power * gx
         if adam:
             dx /= np.sqrt(square_gx + epsilon)
+        # Estimate the noise in f.
+        y1 = f(x)
+        bn += m2 * (1 - bn)
+        y += m2 * (y1 - y)
+        noise += m2 * ((y1 - f(x)) ** 2 - noise)
+        # Update `px` depending on the noise and gradient.
+        # `dx` is dangerously small, so `px` should be increased.
+        if df ** 2 < 2 * noise / bn:
+            px *= 1.2
+        # `dx` can be safely decreased, so `px` should be decreased.
+        elif px > 1e-8 * (1 + 0.25 * np.linalg.norm(x)):
+            px /= 1.1
         # Perform line search.
-        y1 = y
         y2 = f(x - lr / 3 * dx)
         y3 = f(x - lr * 3 * dx)
-        if y1 < y2 < y3:
-            lr /= 1.5
-        elif y2 < y1 < y3:
-            lr /= 1.2
-        elif y1 > y3 < y2:
+        # Adjust the learning rate towards learning rates which give good results.
+        if y1 - 0.25 * sqrt(noise / bn) < min(y2, y3):
+            lr /= 1.3
+        if y2 - 0.25 * sqrt(noise / bn) < min(y1, y3):
+            lr *= 1.3 / 1.4
+        if y3 - 0.25 * sqrt(noise / bn) < min(y1, y2):
             lr *= 1.4
+        # Set a minimum learning rate.
+        lr = max(lr, epsilon / (1 + 0.01 * i) ** 0.5 * (1 + 0.25 * np.linalg.norm(x)))
         # Update the solution.
         x -= lr * dx
-        y = f(x)
-        del x_next, df_dx
+        # Generate the variables for the next iteration.
         variables = dict(
             x=x,
             y=y,
             lr=lr,
+            beta_noise=bn,
             beta1=b1,
-            beta2=b2,
+            beta2=b2 if adam else None,
+            noise=noise,
             gradient=gx,
-            slow_gradient=slow_gx,
-            square_gradient=square_gx,
+            slow_gradient=slow_gx if adam else None,
+            square_gradient=square_gx if adam else None,
         )
         yield variables
         x = variables["x"]

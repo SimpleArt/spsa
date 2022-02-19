@@ -43,7 +43,7 @@ A comparison of SPSA, Gradient Descent, and Bayesian Optimization are shown belo
 
 Calls per Iteration:
     SPSA:
-        5 calls for the objective function per iteration,
+        6 calls for the objective function per iteration,
         including a line search implementation.
     Gradient Descent:
         1 call for the gradient per iteration.
@@ -54,10 +54,13 @@ Calls per Iteration:
 Stochastic (noisy/random functions):
     SPSA:
         Requires stochastic objective function.
+        Implementation works extremely well.
     Gradient Descent:
         Requires stochastic gradient.
+        Also known as stochastic gradient descent.
     Bayesian Optimization:
         Requires stochastic objective function.
+        No special changes really necessary.
 
 Convergence:
     SPSA:
@@ -93,6 +96,14 @@ Integer Optimization:
         Not applicable.
     Bayesian Optimization:
         Use a different Gaussian process than real optimization.
+
+Parallel Calls
+    SPSA:
+        Obvious places for parallel calls, see `help(spsa.aio)` for more details.
+    Gradient Descent:
+        No obvious benefit.
+    Bayesian Optimization:
+        Obvious places for parallel calls.
 """
 from ._spsa import maximize, optimize, optimize_iterator
 import spsa.aio as aio

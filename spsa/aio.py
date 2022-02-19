@@ -220,6 +220,10 @@ async def optimize(
                 if y1 < y2:
                     break
                 lr *= 1.4
+    # Track the average value of x.
+    mx = sqrt(m1 * m2)
+    bx = mx
+    x_avg = mx * x
     # Initial step size.
     dx = gx / b1
     if adam:
@@ -271,7 +275,9 @@ async def optimize(
         lr = max(lr, epsilon / (1 + 0.01 * i) ** 0.5 * (1 + 0.25 * np.linalg.norm(x)))
         # Update the solution.
         x -= lr * dx
-    return x
+        bx += mx / (1 + 0.01 * i) ** 0.303 * (1 - bx)
+        x_avg += mx / (1 + 0.01 * i) ** 0.303 * (x - x_avg)
+    return x_avg / bx
 
 async def optimize_iterator(
     f: Callable[[np.ndarray], Awaitable[float]],
@@ -430,11 +436,16 @@ async def optimize_iterator(
                 if y1 < y2:
                     break
                 lr *= 1.4
+    # Track the average value of x.
+    mx = sqrt(m1 * m2)
+    bx = mx
+    x_avg = mx * x
     # Generate initial iteration.
     variables = dict(
-        x=x,
+        x=x_avg,
         y=y,
         lr=lr,
+        beta_x=bx,
         beta_noise=bn,
         beta1=b1,
         beta2=b2,
@@ -495,11 +506,14 @@ async def optimize_iterator(
         lr = max(lr, epsilon / (1 + 0.01 * i) ** 0.5 * (1 + 0.25 * np.linalg.norm(x)))
         # Update the solution.
         x -= lr * dx
+        bx += mx / (1 + 0.01 * i) ** 0.303 * (1 - bx)
+        x_avg += mx / (1 + 0.01 * i) ** 0.303 * (x - x_avg)
         # Generate the variables for the next iteration.
         variables = dict(
-            x=x,
+            x=x_avg,
             y=y,
             lr=lr,
+            beta_x=bx,
             beta_noise=bn,
             beta1=b1,
             beta2=b2,

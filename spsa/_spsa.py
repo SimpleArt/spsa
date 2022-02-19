@@ -245,6 +245,10 @@ def optimize(
         for _ in range(3):
             while f(x - lr * dx) < f(x):
                 lr *= 1.4
+    # Track the average value of x.
+    mx = sqrt(m1 * m2)
+    bx = mx
+    x_avg = mx * x
     # Initial step size.
     dx = gx / b1
     if adam:
@@ -295,7 +299,9 @@ def optimize(
         lr = max(lr, epsilon / (1 + 0.01 * i) ** 0.5 * (1 + 0.25 * np.linalg.norm(x)))
         # Update the solution.
         x -= lr * dx
-    return x
+        bx += mx / (1 + 0.01 * i) ** 0.303 * (1 - bx)
+        x_avg += mx / (1 + 0.01 * i) ** 0.303 * (x - x_avg)
+    return x_avg / bx
 
 def optimize_iterator(
     f: Callable[[np.ndarray], float],
@@ -335,10 +341,12 @@ def optimize_iterator(
                 The current value of f(x).
             lr:
                 The current learning rate (not including decay).
+            beta_x
             beta_noise:
             beta1:
             beta2:
                 Used for the formulas
+                    x = x / beta_x
                     y = y / beta_noise
                     noise = sqrt(noise / beta_noise)
                     gradient = gradient / beta1
@@ -489,11 +497,16 @@ def optimize_iterator(
         for _ in range(3):
             while f(x - lr * dx) < f(x):
                 lr *= 1.4
+    # Track the average value of x.
+    mx = sqrt(m1 * m2)
+    bx = mx
+    x_avg = mx * x
     # Generate initial iteration.
     variables = dict(
-        x=x,
+        x=x_avg,
         y=y,
         lr=lr,
+        beta_x=bx,
         beta_noise=bn,
         beta1=b1,
         beta2=b2,
@@ -555,11 +568,14 @@ def optimize_iterator(
         lr = max(lr, epsilon / (1 + 0.01 * i) ** 0.5 * (1 + 0.25 * np.linalg.norm(x)))
         # Update the solution.
         x -= lr * dx
+        bx += mx / (1 + 0.01 * i) ** 0.303 * (1 - bx)
+        x_avg += mx / (1 + 0.01 * i) ** 0.303 * (x - x_avg)
         # Generate the variables for the next iteration.
         variables = dict(
-            x=x,
+            x=x_avg,
             y=y,
             lr=lr,
+            beta_x=bx,
             beta_noise=bn,
             beta1=b1,
             beta2=b2,

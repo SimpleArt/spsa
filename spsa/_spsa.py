@@ -256,8 +256,9 @@ def optimize(
         # Compute df/dx in at the next point.
         dx = rng.choice((-1.0, 1.0), x.shape)
         dx *= px / (1 + px_decay * i) ** px_power
+        dx /= np.sqrt(square_gx / b2 + epsilon)
         df = (f(x_next + dx) - f(x_next - dx)) / 2
-        df_dx = df / dx
+        df_dx = dx * (df * sqrt(x.size) / np.linalg.norm(dx) ** 2)
         # Update the gradients.
         b1 += m1 * (1 - b1)
         b2 += m2 * (1 - b2)
@@ -514,8 +515,9 @@ def optimize_iterator(
         # Compute df/dx in at the next point.
         dx = rng.choice((-1.0, 1.0), x.shape)
         dx *= px / (1 + px_decay * i) ** px_power
+        dx /= np.sqrt(square_gx / b2 + epsilon)
         df = (f(x_next + dx) - f(x_next - dx)) / 2
-        df_dx = df / dx
+        df_dx = dx * (df * sqrt(x.size) / np.linalg.norm(dx) ** 2)
         # Update the gradients.
         b1 += m1 * (1 - b1)
         gx += m1 * (df_dx - gx)

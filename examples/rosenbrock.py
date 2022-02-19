@@ -3,7 +3,7 @@ import spsa
 
 def rosenbrock(x: np.ndarray) -> float:
     """The Rosenbrock function is (100 (x0 - x1^2)^2 + (1 - x1)^2) + ..."""
-    return np.linalg.norm(x) ** 2
+    return (100 * (x[:-1] - x[1:]**2) ** 2 + (1 - x[1:]) ** 2).sum()
 
 def main() -> None:
     print("Rosenbrock:")

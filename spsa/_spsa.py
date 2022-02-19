@@ -162,6 +162,7 @@ def optimize(
         raise ValueError(f"x must not contain nan")
     elif np.isinf(x).any():
         raise ValueError(f"x must not contain infinity")
+    rng = np.random.default_rng()
     #---------------------------------------------------------#
     # General momentum algorithm:                             #
     #     b(0) = 0                                            #
@@ -193,7 +194,7 @@ def optimize(
                 y += m2 * (temp - y)
                 noise += m2 * ((temp - f(x)) ** 2 - noise)
                 # Compute a change in f(x) in a random direction.
-                dx = np.random.default_rng().choice((-1.0, 1.0), x.shape)
+                dx = rng.choice((-1.0, 1.0), x.shape)
                 dx *= px
                 # Stop if sufficiently accurate.
                 if (f(x + dx) - f(x - dx)) ** 2 > 8 * noise / bn:
@@ -208,7 +209,7 @@ def optimize(
                 y += m2 * (temp - y)
                 noise += m2 * ((temp - f(x)) ** 2 - noise)
                 # Compute a change in f(x) in a random direction.
-                dx = np.random.default_rng().choice((-1.0, 1.0), x.shape)
+                dx = rng.choice((-1.0, 1.0), x.shape)
                 dx *= px
                 # Stop if too much noise.
                 if (f(x + dx) - f(x - dx)) ** 2 < 8 * noise / bn:
@@ -226,7 +227,7 @@ def optimize(
         square_gx = np.zeros_like(x)
     for _ in range(isqrt(isqrt(x.size + 4) + 4)):
         # Compute df/dx in random directions.
-        dx = np.random.default_rng().choice((-1.0, 1.0), x.shape)
+        dx = rng.choice((-1.0, 1.0), x.shape)
         dx *= px
         df_dx = (f(x + dx) - f(x - dx)) * 0.5 / dx
         # Update the gradients.
@@ -254,7 +255,7 @@ def optimize(
         # Estimate the next point.
         x_next = x - lr * dx
         # Compute df/dx in at the next point.
-        dx = np.random.default_rng().choice((-1.0, 1.0), x.shape)
+        dx = rng.choice((-1.0, 1.0), x.shape)
         dx *= px / (1 + px_decay * i) ** px_power
         df = (f(x_next + dx) - f(x_next - dx)) / 2
         df_dx = df / dx
@@ -412,6 +413,7 @@ def optimize_iterator(
         raise ValueError(f"x must not contain nan")
     elif np.isinf(x).any():
         raise ValueError(f"x must not contain infinity")
+    rng = np.random.default_rng()
     #---------------------------------------------------------#
     # General momentum algorithm:                             #
     #     b(0) = 0                                            #
@@ -443,7 +445,7 @@ def optimize_iterator(
                 y += m2 * (temp - y)
                 noise += m2 * ((temp - f(x)) ** 2 - noise)
                 # Compute a change in f(x) in a random direction.
-                dx = np.random.default_rng().choice((-1.0, 1.0), x.shape)
+                dx = rng.choice((-1.0, 1.0), x.shape)
                 dx *= px
                 # Stop if sufficiently accurate.
                 if (f(x + dx) - f(x - dx)) ** 2 > 8 * noise / bn:
@@ -458,7 +460,7 @@ def optimize_iterator(
                 y += m2 * (temp - y)
                 noise += m2 * ((temp - f(x)) ** 2 - noise)
                 # Compute a change in f(x) in a random direction.
-                dx = np.random.default_rng().choice((-1.0, 1.0), x.shape)
+                dx = rng.choice((-1.0, 1.0), x.shape)
                 dx *= px
                 # Stop if too much noise.
                 if (f(x + dx) - f(x - dx)) ** 2 < 8 * noise / bn:
@@ -476,7 +478,7 @@ def optimize_iterator(
         square_gx = np.zeros_like(x)
     for _ in range(isqrt(isqrt(x.size + 4) + 4)):
         # Compute df/dx in random directions.
-        dx = np.random.default_rng().choice((-1.0, 1.0), x.shape)
+        dx = rng.choice((-1.0, 1.0), x.shape)
         dx *= px
         df_dx = (f(x + dx) - f(x - dx)) * 0.5 / dx
         # Update the gradients.
@@ -521,7 +523,7 @@ def optimize_iterator(
         # Estimate the next point.
         x_next = x - lr * dx
         # Compute df/dx in at the next point.
-        dx = np.random.default_rng().choice((-1.0, 1.0), x.shape)
+        dx = rng.choice((-1.0, 1.0), x.shape)
         dx *= px / (1 + px_decay * i) ** px_power
         df = (f(x_next + dx) - f(x_next - dx)) / 2
         df_dx = df / dx

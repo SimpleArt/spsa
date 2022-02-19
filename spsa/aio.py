@@ -191,11 +191,10 @@ async def optimize(
             px = max(px, epsilon * (1 + 0.25 * np.linalg.norm(x)))
     # Estimate the gradient and its square.
     b1 = 0.0
+    b2 = 0.0
     gx = np.zeros_like(x)
-    if adam:
-        b2 = 0.0
-        slow_gx = np.zeros_like(x)
-        square_gx = np.zeros_like(x)
+    slow_gx = np.zeros_like(x)
+    square_gx = np.zeros_like(x)
     for _ in range(isqrt(isqrt(x.size + 4) + 4)):
         # Compute df/dx in random directions.
         dx = rng.choice((-1.0, 1.0), x.shape)
@@ -204,24 +203,27 @@ async def optimize(
         df_dx = (y1 - y2) * 0.5 / dx
         # Update the gradients.
         b1 += m1 * (1 - b1)
+        b2 += m2 * (1 - b2)
         gx += m1 * (df_dx - gx)
-        if adam:
-            b2 += m2 * (1 - b2)
-            slow_gx += m2 * (df_dx - slow_gx)
-            square_gx += m2 * ((slow_gx / b2) ** 2 - square_gx)
+        slow_gx += m2 * (df_dx - slow_gx)
+        square_gx += m2 * ((slow_gx / b2) ** 2 - square_gx)
     # Estimate the learning rate.
     if lr is None:
         lr = 1e-5
-        temp = await f(x)
         # Increase the learning rate while it is safe to do so.
-        dx = 3 * b2 / b1 * gx
+        dx = 3 / b1 * gx
         if adam:
-            dx /= np.sqrt(square_gx + epsilon)
+            dx /= np.sqrt(square_gx / b2 + epsilon)
         for _ in range(3):
-            while await f(x - lr * dx) < temp:
+            while True:
+                y1, y2 = await asyncio.gather(f(x), f(x - lr * dx))
+                if y1 < y2:
+                    break
                 lr *= 1.4
     # Initial step size.
-    dx = b2 / b1 * gx / np.sqrt(square_gx + epsilon)
+    dx = gx / b1
+    if adam:
+        dx /= np.sqrt(square_gx / b2 + epsilon)
     # Run the number of iterations.
     for i in range(iterations):
         # Estimate the next point.
@@ -234,15 +236,14 @@ async def optimize(
         df_dx = df / dx
         # Update the gradients.
         b1 += m1 * (1 - b1)
+        b2 += m2 * (1 - b2)
         gx += m1 * (df_dx - gx)
-        if adam:
-            b2 += m2 * (1 - b2)
-            slow_gx += m2 * (df_dx - slow_gx)
-            square_gx += m2 * ((slow_gx / b2) ** 2 - square_gx)
+        slow_gx += m2 * (df_dx - slow_gx)
+        square_gx += m2 * ((slow_gx / b2) ** 2 - square_gx)
         # Compute the step size.
-        dx = b2 / b1 / (1 + lr_decay * i) ** lr_power * gx
+        dx = gx / (b1 * (1 + lr_decay * i) ** lr_power)
         if adam:
-            dx /= np.sqrt(square_gx + epsilon)
+            dx /= np.sqrt(square_gx / b2 + epsilon)
         # Sample points in parallel.
         y0, y1, y2, y3 = await asyncio.gather(f(x), f(x), f(x - lr / 3 * dx), f(x - lr * 3 * dx))
         # Estimate the noise in f.
@@ -398,11 +399,10 @@ async def optimize_iterator(
             px = max(px, epsilon * (1 + 0.25 * np.linalg.norm(x)))
     # Estimate the gradient and its square.
     b1 = 0.0
+    b2 = 0.0
     gx = np.zeros_like(x)
-    if adam:
-        b2 = 0.0
-        slow_gx = np.zeros_like(x)
-        square_gx = np.zeros_like(x)
+    slow_gx = np.zeros_like(x)
+    square_gx = np.zeros_like(x)
     for _ in range(isqrt(isqrt(x.size + 4) + 4)):
         # Compute df/dx in random directions.
         dx = rng.choice((-1.0, 1.0), x.shape)
@@ -411,21 +411,22 @@ async def optimize_iterator(
         df_dx = (y1 - y2) * 0.5 / dx
         # Update the gradients.
         b1 += m1 * (1 - b1)
+        b2 += m2 * (1 - b2)
         gx += m1 * (df_dx - gx)
-        if adam:
-            b2 += m2 * (1 - b2)
-            slow_gx += m2 * (df_dx - slow_gx)
-            square_gx += m2 * ((slow_gx / b2) ** 2 - square_gx)
+        slow_gx += m2 * (df_dx - slow_gx)
+        square_gx += m2 * ((slow_gx / b2) ** 2 - square_gx)
     # Estimate the learning rate.
     if lr is None:
         lr = 1e-5
-        temp = await f(x)
         # Increase the learning rate while it is safe to do so.
-        dx = 3 * b2 / b1 * gx
+        dx = 3 / b1 * gx
         if adam:
-            dx /= np.sqrt(square_gx + epsilon)
+            dx /= np.sqrt(square_gx / b2 + epsilon)
         for _ in range(3):
-            while await f(x - lr * dx) < temp:
+            while True:
+                y1, y2 = await asyncio.gather(f(x), f(x - lr * dx))
+                if y1 < y2:
+                    break
                 lr *= 1.4
     # Generate initial iteration.
     variables = dict(
@@ -434,18 +435,18 @@ async def optimize_iterator(
         lr=lr,
         beta_noise=bn,
         beta1=b1,
-        beta2=b2 if adam else None,
+        beta2=b2,
         noise=noise,
         gradient=gx,
-        slow_gradient=slow_gx if adam else None,
-        square_gradient=square_gx if adam else None,
+        slow_gradient=slow_gx,
+        square_gradient=square_gx,
     )
     yield variables
-    x = variables["x"]
-    lr = variables["lr"]
     del variables
     # Initial step size.
-    dx = b2 / b1 * gx / np.sqrt(square_gx + epsilon)
+    dx = gx / b1
+    if adam:
+        dx /= np.sqrt(square_gx / b2 + epsilon)
     # Run the number of iterations.
     for i in range(iterations):
         # Estimate the next point.
@@ -458,15 +459,14 @@ async def optimize_iterator(
         df_dx = df / dx
         # Update the gradients.
         b1 += m1 * (1 - b1)
+        b2 += m2 * (1 - b2)
         gx += m1 * (df_dx - gx)
-        if adam:
-            b2 += m2 * (1 - b2)
-            slow_gx += m2 * (df_dx - slow_gx)
-            square_gx += m2 * ((slow_gx / b2) ** 2 - square_gx)
+        slow_gx += m2 * (df_dx - slow_gx)
+        square_gx += m2 * ((slow_gx / b2) ** 2 - square_gx)
         # Compute the step size.
-        dx = b2 / b1 / (1 + lr_decay * i) ** lr_power * gx
+        dx = gx / (b1 * (1 + lr_decay * i) ** lr_power)
         if adam:
-            dx /= np.sqrt(square_gx + epsilon)
+            dx /= np.sqrt(square_gx / b2 + epsilon)
         # Sample points in parallel.
         y0, y1, y2, y3 = await asyncio.gather(f(x), f(x), f(x - lr / 3 * dx), f(x - lr * 3 * dx))
         # Estimate the noise in f.
@@ -499,13 +499,11 @@ async def optimize_iterator(
             lr=lr,
             beta_noise=bn,
             beta1=b1,
-            beta2=b2 if adam else None,
+            beta2=b2,
             noise=noise,
             gradient=gx,
-            slow_gradient=slow_gx if adam else None,
-            square_gradient=square_gx if adam else None,
+            slow_gradient=slow_gx,
+            square_gradient=square_gx,
         )
         yield variables
-        x = variables["x"]
-        lr = variables["lr"]
         del variables

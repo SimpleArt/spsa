@@ -25,11 +25,11 @@ OptimizerVariables = TypedDict(
     lr=float,
     beta_noise=float,
     beta1=float,
-    beta2=Optional[float],
+    beta2=float,
     noise=float,
     gradient=np.ndarray,
-    slow_gradient=Optional[np.ndarray],
-    square_gradient=Optional[np.ndarray],
+    slow_gradient=np.ndarray,
+    square_gradient=np.ndarray,
 )
 
 def maximize(f: Callable[[np.ndarray], float], /) -> Callable[[np.ndarray], float]:
@@ -220,11 +220,10 @@ def optimize(
             px = max(px, epsilon * (1 + 0.25 * np.linalg.norm(x)))
     # Estimate the gradient and its square.
     b1 = 0.0
+    b2 = 0.0
     gx = np.zeros_like(x)
-    if adam:
-        b2 = 0.0
-        slow_gx = np.zeros_like(x)
-        square_gx = np.zeros_like(x)
+    slow_gx = np.zeros_like(x)
+    square_gx = np.zeros_like(x)
     for _ in range(isqrt(isqrt(x.size + 4) + 4)):
         # Compute df/dx in random directions.
         dx = rng.choice((-1.0, 1.0), x.shape)
@@ -232,24 +231,24 @@ def optimize(
         df_dx = (f(x + dx) - f(x - dx)) * 0.5 / dx
         # Update the gradients.
         b1 += m1 * (1 - b1)
+        b2 += m2 * (1 - b2)
         gx += m1 * (df_dx - gx)
-        if adam:
-            b2 += m2 * (1 - b2)
-            slow_gx += m2 * (df_dx - slow_gx)
-            square_gx += m2 * ((slow_gx / b2) ** 2 - square_gx)
+        slow_gx += m2 * (df_dx - slow_gx)
+        square_gx += m2 * ((slow_gx / b2) ** 2 - square_gx)
     # Estimate the learning rate.
     if lr is None:
         lr = 1e-5
-        temp = f(x)
         # Increase the learning rate while it is safe to do so.
-        dx = 3 * b2 / b1 * gx
+        dx = 3 / b1 * gx
         if adam:
-            dx /= np.sqrt(square_gx + epsilon)
+            dx /= np.sqrt(square_gx / b2 + epsilon)
         for _ in range(3):
-            while f(x - lr * dx) < temp:
+            while f(x - lr * dx) < f(x):
                 lr *= 1.4
     # Initial step size.
-    dx = b2 / b1 * gx / np.sqrt(square_gx + epsilon)
+    dx = gx / b1
+    if adam:
+        dx /= np.sqrt(square_gx / b2 + epsilon)
     # Run the number of iterations.
     for i in range(iterations):
         # Estimate the next point.
@@ -261,15 +260,14 @@ def optimize(
         df_dx = df / dx
         # Update the gradients.
         b1 += m1 * (1 - b1)
+        b2 += m2 * (1 - b2)
         gx += m1 * (df_dx - gx)
-        if adam:
-            b2 += m2 * (1 - b2)
-            slow_gx += m2 * (df_dx - slow_gx)
-            square_gx += m2 * ((slow_gx / b2) ** 2 - square_gx)
+        slow_gx += m2 * (df_dx - slow_gx)
+        square_gx += m2 * ((slow_gx / b2) ** 2 - square_gx)
         # Compute the step size.
-        dx = b2 / b1 / (1 + lr_decay * i) ** lr_power * gx
+        dx = gx / (b1 * (1 + lr_decay * i) ** lr_power)
         if adam:
-            dx /= np.sqrt(square_gx + epsilon)
+            dx /= np.sqrt(square_gx / b2 + epsilon)
         # Estimate the noise in f.
         y1 = f(x)
         bn += m2 * (1 - bn)
@@ -332,27 +330,23 @@ def optimize_iterator(
 
             x:
                 The current estimated minimum of f.
-                NOTE: Updating this value in the dictionary will update in the optimizer.
             y:
                 The current value of f(x).
             lr:
                 The current learning rate (not including decay).
-                NOTE: Updating this value in the dictionary will update in the optimizer.
             beta_noise:
             beta1:
             beta2:
                 Used for the formulas
-                    y / beta_noise
-                    sqrt(noise / beta_noise)
-                    gradient / beta1
-                    slow_gradient / beta2
-                    square_gradient / beta2
+                    y = y / beta_noise
+                    noise = sqrt(noise / beta_noise)
+                    gradient = gradient / beta1
+                    slow_gradient = slow_gradient / beta2
+                    square_gradient = square_gradient / beta2
                 to get unbiased estimates of each variable.
 
                 On their own, the estimates are closer to 0 than they should be
                 and need to be divided by their respective betas for correction.
-
-                If adam is not used, beta2 = None.
             noise:
                 An estimate for how much noise is in f(x).
                 Used for SPSA.
@@ -361,12 +355,10 @@ def optimize_iterator(
             slow_gradient:
                 The slower estimate of the gradient of f at x.
                 Biased more towards previous iterations.
-                None if adam is not used.
                 Used for the square_gradient.
             square_gradient:
                 An estimate for the component-wise square of the gradient of f at x.
-                None if adam is not used.
-                Used for the Adam method.
+                Used for the Adam method and perturbation size rescaling.
     """
     # Type-check.
     if not callable(f):
@@ -471,11 +463,10 @@ def optimize_iterator(
             px = max(px, epsilon * (1 + 0.25 * np.linalg.norm(x)))
     # Estimate the gradient and its square.
     b1 = 0.0
+    b2 = 0.0
     gx = np.zeros_like(x)
-    if adam:
-        b2 = 0.0
-        slow_gx = np.zeros_like(x)
-        square_gx = np.zeros_like(x)
+    slow_gx = np.zeros_like(x)
+    square_gx = np.zeros_like(x)
     for _ in range(isqrt(isqrt(x.size + 4) + 4)):
         # Compute df/dx in random directions.
         dx = rng.choice((-1.0, 1.0), x.shape)
@@ -483,21 +474,19 @@ def optimize_iterator(
         df_dx = (f(x + dx) - f(x - dx)) * 0.5 / dx
         # Update the gradients.
         b1 += m1 * (1 - b1)
+        b2 += m2 * (1 - b2)
         gx += m1 * (df_dx - gx)
-        if adam:
-            b2 += m2 * (1 - b2)
-            slow_gx += m2 * (df_dx - slow_gx)
-            square_gx += m2 * ((slow_gx / b2) ** 2 - square_gx)
+        slow_gx += m2 * (df_dx - slow_gx)
+        square_gx += m2 * ((slow_gx / b2) ** 2 - square_gx)
     # Estimate the learning rate.
     if lr is None:
         lr = 1e-5
-        temp = f(x)
         # Increase the learning rate while it is safe to do so.
-        dx = 3 * b2 / b1 * gx
+        dx = 3 / b1 * gx
         if adam:
-            dx /= np.sqrt(square_gx + epsilon)
+            dx /= np.sqrt(square_gx / b2 + epsilon)
         for _ in range(3):
-            while f(x - lr * dx) < temp:
+            while f(x - lr * dx) < f(x):
                 lr *= 1.4
     # Generate initial iteration.
     variables = dict(
@@ -506,18 +495,18 @@ def optimize_iterator(
         lr=lr,
         beta_noise=bn,
         beta1=b1,
-        beta2=b2 if adam else None,
+        beta2=b2,
         noise=noise,
         gradient=gx,
-        slow_gradient=slow_gx if adam else None,
-        square_gradient=square_gx if adam else None,
+        slow_gradient=slow_gx,
+        square_gradient=square_gx,
     )
     yield variables
-    x = variables["x"]
-    lr = variables["lr"]
     del variables
     # Initial step size.
-    dx = b2 / b1 * gx / np.sqrt(square_gx + epsilon)
+    dx = gx / b1
+    if adam:
+        dx /= np.sqrt(square_gx / b2 + epsilon)
     # Run the number of iterations.
     for i in range(iterations):
         # Estimate the next point.
@@ -535,9 +524,9 @@ def optimize_iterator(
             slow_gx += m2 * (df_dx - slow_gx)
             square_gx += m2 * ((slow_gx / b2) ** 2 - square_gx)
         # Compute the step size.
-        dx = b2 / b1 / (1 + lr_decay * i) ** lr_power * gx
+        dx = gx / (b1 * (1 + lr_decay * i) ** lr_power)
         if adam:
-            dx /= np.sqrt(square_gx + epsilon)
+            dx /= np.sqrt(square_gx / b2 + epsilon)
         # Estimate the noise in f.
         y1 = f(x)
         bn += m2 * (1 - bn)
@@ -571,13 +560,11 @@ def optimize_iterator(
             lr=lr,
             beta_noise=bn,
             beta1=b1,
-            beta2=b2 if adam else None,
+            beta2=b2,
             noise=noise,
             gradient=gx,
-            slow_gradient=slow_gx if adam else None,
-            square_gradient=square_gx if adam else None,
+            slow_gradient=slow_gx,
+            square_gradient=square_gx,
         )
         yield variables
-        x = variables["x"]
-        lr = variables["lr"]
         del variables

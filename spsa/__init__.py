@@ -3,9 +3,9 @@ Simultaneous Perturbation Stochastic Optimization (SPSA)
 
 The purpose of this package is to provide multivariable optimizers
 using SPSA. Although other optimizers exist, not many implement
-SPSA, which has a variant of pros and cons. Additionally, SPSA has
+SPSA, which has various pros and cons. Additionally, SPSA has
 few requirements so that you don't have to install large packages
-like scipy optimize a function.
+like scipy just to optimize a function.
 
 Usage
 ------

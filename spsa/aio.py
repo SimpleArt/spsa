@@ -45,7 +45,7 @@ from typing import AsyncIterator, Awaitable, Callable, Optional, Sequence, Suppo
 
 import numpy as np
 
-from ._spsa import ArrayLike, OptimizerVariables
+from ._spsa import ArrayLike, OptimizerVariables, _type_check
 
 __all__ = ["optimize", "optimize_iterator"]
 
@@ -86,51 +86,10 @@ async def optimize(
 
     See `help(spsa.optimizer)` and `help(spsa.aio)` for more details.
     """
-    # Type-check.
-    if not callable(f):
-        raise TypeError(f"f must be callable, got {f!r}")
-    elif not isinstance(x, (np.ndarray, Sequence)):
-        raise TypeError(f"x must be either a numpy array or a sequence, got {x!r}")
-    elif not isinstance(iterations, int):
-        raise TypeError(f"iterations must be an integer, got {iterations!r}")
-    elif not isinstance(adam, SupportsIndex):
-        raise TypeError(f"adam cannot be interpreted as an integer, got {adam!r}")
-    adam = bool(operator.index(adam))
-    names = ("lr_decay", "lr_power")
-    values = (lr_decay, lr_power)
-    if lr is not None:
-        names = ("lr", *names)
-        values = (lr, *values)
-    if px is not None:
-        names = (*names, "px")
-        values = (*values, px)
-    names = (*names, "px_decay", "px_power", "momentum", "beta", "epsilon")
-    values = (*values, px_decay, px_power, momentum, beta, epsilon)
-    for name, value in zip(names, values):
-        if not isinstance(value, (float, int)):
-            raise TypeError(f"{name} must be real, got {value!r}")
-        elif isnan(value):
-            raise ValueError(f"{name} must not be nan, got {value!r}")
-        elif isinf(value):
-            raise ValueError(f"{name} must not be infinite, got {value!r}")
-        elif value <= 0:
-            raise ValueError(f"{name} must not be negative, got {value!r}")
-    names = ("lr_power", "px_power", "momentum", "beta")
-    values = (lr_power, px_power, momentum, beta)
-    for name, value in zip(names, values):
-        if value >= 1:
-            raise ValueError(f"{name} must not be greater than 1, got {value!r}")
-    # Free up references.
-    del names, name, values, value
-    # Cast to numpy array.
-    x = np.asarray(x, dtype=float)
-    # Type-check.
-    if x.size == 0:
-        raise ValueError("cannot optimize with array of size 0")
-    elif np.isnan(x).any():
-        raise ValueError(f"x must not contain nan")
-    elif np.isinf(x).any():
-        raise ValueError(f"x must not contain infinity")
+    try:
+        x = _type_check(f, x, adam, iterations, lr, lr_decay, lr_power, px, px_decay, px_power, momentum, beta, epsilon)
+    except (TypeError, ValueError) as e:
+        raise e.with_traceback(None)
     rng = np.random.default_rng()
     #---------------------------------------------------------#
     # General momentum algorithm:                             #
@@ -302,51 +261,10 @@ async def optimize_iterator(
 
     See `help(spsa.optimizer_iterator)` and `help(spsa.aio)` for more details.
     """
-    # Type-check.
-    if not callable(f):
-        raise TypeError(f"f must be callable, got {f!r}")
-    elif not isinstance(x, (np.ndarray, Sequence)):
-        raise TypeError(f"x must be either a numpy array or a sequence, got {x!r}")
-    elif not isinstance(iterations, int):
-        raise TypeError(f"iterations must be an integer, got {iterations!r}")
-    elif not isinstance(adam, SupportsIndex):
-        raise TypeError(f"adam cannot be interpreted as an integer, got {adam!r}")
-    adam = bool(operator.index(adam))
-    names = ("lr_decay", "lr_power")
-    values = (lr_decay, lr_power)
-    if lr is not None:
-        names = ("lr", *names)
-        values = (lr, *values)
-    if px is not None:
-        names = (*names, "px")
-        values = (*values, px)
-    names = (*names, "px_decay", "px_power", "momentum", "beta", "epsilon")
-    values = (*values, px_decay, px_power, momentum, beta, epsilon)
-    for name, value in zip(names, values):
-        if not isinstance(value, (float, int)):
-            raise TypeError(f"{name} must be real, got {value!r}")
-        elif isnan(value):
-            raise ValueError(f"{name} must not be nan, got {value!r}")
-        elif isinf(value):
-            raise ValueError(f"{name} must not be infinite, got {value!r}")
-        elif value <= 0:
-            raise ValueError(f"{name} must not be negative, got {value!r}")
-    names = ("lr_power", "px_power", "momentum", "beta")
-    values = (lr_power, px_power, momentum, beta)
-    for name, value in zip(names, values):
-        if value >= 1:
-            raise ValueError(f"{name} must not be greater than 1, got {value!r}")
-    # Free up references.
-    del names, name, values, value
-    # Cast to numpy array.
-    x = np.asarray(x, dtype=float)
-    # Type-check.
-    if x.size == 0:
-        raise ValueError("cannot optimize with array of size 0")
-    elif np.isnan(x).any():
-        raise ValueError(f"x must not contain nan")
-    elif np.isinf(x).any():
-        raise ValueError(f"x must not contain infinity")
+    try:
+        x = _type_check(f, x, adam, iterations, lr, lr_decay, lr_power, px, px_decay, px_power, momentum, beta, epsilon)
+    except (TypeError, ValueError) as e:
+        raise e.with_traceback(None)
     rng = np.random.default_rng()
     #---------------------------------------------------------#
     # General momentum algorithm:                             #

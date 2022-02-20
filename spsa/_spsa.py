@@ -20,6 +20,8 @@ ArrayLike = Union[
 
 OptimizerVariables = TypedDict(
     "OptimizerVariables",
+    x_min=np.ndarray,
+    y_min=np.ndarray,
     x=np.ndarray,
     y=float,
     lr=float,
@@ -270,6 +272,9 @@ def optimize(
     mx = sqrt(m1 * m2)
     bx = mx
     x_avg = mx * x
+    # Track the best (x, y).
+    y_min = y
+    x_min = x.copy()
     # Initial step size.
     dx = gx / b1
     if adam:
@@ -322,7 +327,11 @@ def optimize(
         x -= lr * dx
         bx += mx / (1 + 0.01 * i) ** 0.303 * (1 - bx)
         x_avg += mx / (1 + 0.01 * i) ** 0.303 * (x - x_avg)
-    return x_avg / bx
+        # Track the best (x, y).
+        if y / bn < y_min:
+            y_min = y / bn
+            x_min = x_avg / bx
+    return x_min
 
 def optimize_iterator(
     f: Callable[[np.ndarray], float],
@@ -356,10 +365,12 @@ def optimize_iterator(
             NOTE: x, gradient, slow_gradient, and square_gradient are mutable numpy arrays.
                   Modifying them may mess up the optimizer.
 
+            x_min:
+            y_min:
+                The best seen estimated minimum of f.
             x:
-                The current estimated minimum of f.
             y:
-                The current value of f(x).
+                The current estimated minimum of f.
             lr:
                 The current learning rate (not including decay).
             beta_x
@@ -481,8 +492,13 @@ def optimize_iterator(
     mx = sqrt(m1 * m2)
     bx = mx
     x_avg = mx * x
+    # Track the best (x, y).
+    y_min = y
+    x_min = x.copy()
     # Generate initial iteration.
     variables = dict(
+        x_min=x_min,
+        y_min=y_min,
         x=x_avg,
         y=y,
         lr=lr,
@@ -550,8 +566,14 @@ def optimize_iterator(
         x -= lr * dx
         bx += mx / (1 + 0.01 * i) ** 0.303 * (1 - bx)
         x_avg += mx / (1 + 0.01 * i) ** 0.303 * (x - x_avg)
+        # Track the best (x, y).
+        if y / bn < y_min:
+            y_min = y / bn
+            x_min = x_avg / bx
         # Generate the variables for the next iteration.
         variables = dict(
+            x_min=x_min,
+            y_min=y_min,
             x=x_avg,
             y=y,
             lr=lr,

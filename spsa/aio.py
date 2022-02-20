@@ -183,6 +183,9 @@ async def optimize(
     mx = sqrt(m1 * m2)
     bx = mx
     x_avg = mx * x
+    # Track the best (x, y).
+    y_min = y
+    x_min = x.copy()
     # Initial step size.
     dx = gx / b1
     if adam:
@@ -236,7 +239,11 @@ async def optimize(
         x -= lr * dx
         bx += mx / (1 + 0.01 * i) ** 0.303 * (1 - bx)
         x_avg += mx / (1 + 0.01 * i) ** 0.303 * (x - x_avg)
-    return x_avg / bx
+        # Track the best (x, y).
+        if y / bn < y_min:
+            y_min = y / bn
+            x_min = x_avg / bx
+    return x_min
 
 async def optimize_iterator(
     f: Callable[[np.ndarray], Awaitable[float]],
@@ -358,8 +365,13 @@ async def optimize_iterator(
     mx = sqrt(m1 * m2)
     bx = mx
     x_avg = mx * x
+    # Track the best (x, y).
+    y_min = y
+    x_min = x.copy()
     # Generate initial iteration.
     variables = dict(
+        x_min=x_min,
+        y_min=y_min,
         x=x_avg,
         y=y,
         lr=lr,
@@ -426,8 +438,14 @@ async def optimize_iterator(
         x -= lr * dx
         bx += mx / (1 + 0.01 * i) ** 0.303 * (1 - bx)
         x_avg += mx / (1 + 0.01 * i) ** 0.303 * (x - x_avg)
+        # Track the best (x, y).
+        if y / bn < y_min:
+            y_min = y / bn
+            x_min = x_avg / bx
         # Generate the variables for the next iteration.
         variables = dict(
+            x_min=x_min,
+            y_min=y_min,
             x=x_avg,
             y=y,
             lr=lr,

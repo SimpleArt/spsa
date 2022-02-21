@@ -274,7 +274,7 @@ async def optimize(
         b2 = m2 * (1 - m2)
         lr /= 16
         await asyncio.sleep(0)
-    return x_min
+    return x_min if y_min - 0.25 * sqrt(noise / bn) < min(*(await asyncio.gather(f(x), f(x)))) else x
 
 async def optimize_iterator(
     f: Callable[[np.ndarray], Awaitable[float]],

@@ -355,7 +355,7 @@ def optimize(
         square_gx *= m2 * (1 - m2) / b2
         b2 = m2 * (1 - m2)
         lr /= 16
-    return x_min
+    return x_min if y_min - 0.25 * sqrt(noise / bn) < min(f(x), f(x)) else x
 
 def optimize_iterator(
     f: Callable[[np.ndarray], float],

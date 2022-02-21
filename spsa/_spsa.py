@@ -206,6 +206,7 @@ def optimize(
         y += m2 * (temp - y)
         noise += m2 * ((temp - f(x)) ** 2 - noise)
     # Estimate the perturbation size that should be used.
+    temp = f(x)
     if px is None:
         px = 3e-4 * (1 + 0.25 * np.linalg.norm(x))
         for _ in range(isqrt(isqrt(x.size + 100) + 100)):
@@ -241,6 +242,7 @@ def optimize(
                 px /= 1.1
             # Set a minimum perturbation.
             px = max(px, epsilon * (1 + 0.25 * np.linalg.norm(x)))
+    temp = f(x)
     # Estimate the gradient and its square.
     b1 = 0.0
     b2 = 0.0
@@ -448,6 +450,7 @@ def optimize_iterator(
         y += m2 * (temp - y)
         noise += m2 * ((temp - f(x)) ** 2 - noise)
     # Estimate the perturbation size that should be used.
+    temp = f(x)
     if px is None:
         px = 3e-4 * (1 + 0.25 * np.linalg.norm(x))
         for _ in range(3):
@@ -483,6 +486,7 @@ def optimize_iterator(
                 px /= 1.1
             # Set a minimum perturbation.
             px = max(px, epsilon * (1 + 0.25 * np.linalg.norm(x)))
+    temp = f(x)
     # Estimate the gradient and its square.
     b1 = 0.0
     b2 = 0.0
@@ -565,6 +569,8 @@ def optimize_iterator(
             dx /= np.sqrt(square_gx / b2 + epsilon)
         # Estimate the noise in f.
         y1 = f(x)
+        y2 = f(x - lr / 3 * dx)
+        y3 = f(x - lr * 3 * dx)
         bn += m2 * (1 - bn)
         y += m2 * (y1 - y)
         noise += m2 * ((y1 - f(x)) ** 2 - noise)
@@ -576,8 +582,6 @@ def optimize_iterator(
         elif px > 1e-8 * (1 + 0.25 * np.linalg.norm(x)):
             px /= 1.1
         # Perform line search.
-        y2 = f(x - lr / 3 * dx)
-        y3 = f(x - lr * 3 * dx)
         # Adjust the learning rate towards learning rates which give good results.
         if y1 - 0.25 * sqrt(noise / bn) < min(y2, y3):
             lr /= 1.3

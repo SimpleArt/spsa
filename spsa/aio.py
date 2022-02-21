@@ -111,6 +111,7 @@ async def optimize(
         y += 0.5 * m2 * ((y1 - y) + (y2 - y))
         noise += m2 * ((y1 - y2) ** 2 - noise)
         await asyncio.sleep(0)
+    temp = await f(x)
     # Estimate the perturbation size that should be used.
     if px is None:
         px = 3e-4 * (1 + 0.25 * np.linalg.norm(x))
@@ -152,6 +153,7 @@ async def optimize(
             # Set a minimum perturbation.
             px = max(px, epsilon * (1 + 0.25 * np.linalg.norm(x)))
             await asyncio.sleep(0)
+    temp = await f(x)
     # Estimate the gradient and its square.
     b1 = 0.0
     b2 = 0.0
@@ -222,7 +224,7 @@ async def optimize(
         if adam:
             dx /= np.sqrt(square_gx / b2 + epsilon)
         # Sample points in parallel.
-        y0, y1, y2, y3 = await asyncio.gather(f(x), f(x), f(x - lr / 3 * dx), f(x - lr * 3 * dx))
+        y1, y2, y3, y0 = await asyncio.gather(f(x), f(x - lr / 3 * dx), f(x - lr * 3 * dx), f(x))
         # Estimate the noise in f.
         bn += m2 * (1 - bn)
         y += 0.5 * m2 * ((y0 - y) + (y1 - y))
@@ -322,6 +324,7 @@ async def optimize_iterator(
         y += 0.5 * m2 * ((y1 - y) + (y2 - y))
         noise += m2 * ((y1 - y2) ** 2 - noise)
         await asyncio.sleep(0)
+    temp = await f(x)
     # Estimate the perturbation size that should be used.
     if px is None:
         px = 3e-4 * (1 + 0.25 * np.linalg.norm(x))
@@ -363,6 +366,7 @@ async def optimize_iterator(
             # Set a minimum perturbation.
             px = max(px, epsilon * (1 + 0.25 * np.linalg.norm(x)))
             await asyncio.sleep(0)
+    temp = await f(x)
     # Estimate the gradient and its square.
     b1 = 0.0
     b2 = 0.0
@@ -450,7 +454,7 @@ async def optimize_iterator(
         if adam:
             dx /= np.sqrt(square_gx / b2 + epsilon)
         # Sample points in parallel.
-        y0, y1, y2, y3 = await asyncio.gather(f(x), f(x), f(x - lr / 3 * dx), f(x - lr * 3 * dx))
+        y1, y2, y3, y0 = await asyncio.gather(f(x), f(x - lr / 3 * dx), f(x - lr * 3 * dx), f(x))
         # Estimate the noise in f.
         bn += m2 * (1 - bn)
         y += 0.5 * m2 * ((y0 - y) + (y1 - y))

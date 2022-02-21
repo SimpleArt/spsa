@@ -256,7 +256,8 @@ async def optimize(
             y_min = y / bn
             x_min = x_avg / bx
             consecutive_fails = 0
-        if consecutive_fails < 100 * improvement_fails:
+        await asyncio.sleep(0)
+        if consecutive_fails < 128 * (improvement_fails + isqrt(x.size + 100)):
             continue
         # Reset variables if diverging.
         consecutive_fails = 0
@@ -272,8 +273,7 @@ async def optimize(
         slow_gx *= m2 * (1 - m2) / b2
         square_gx *= m2 * (1 - m2) / b2
         b2 = m2 * (1 - m2)
-        lr /= 16
-        await asyncio.sleep(0)
+        lr /= 16 * improvement_fails
     return x_min if y_min - 0.25 * sqrt(noise / bn) < min(*(await asyncio.gather(f(x), f(x)))) else x
 
 async def optimize_iterator(
@@ -318,7 +318,7 @@ async def optimize_iterator(
     bn = 0.0
     y = 0.0
     noise = 0.0
-    for _ in range(isqrt(isqrt(x.size + 100) + 100)):
+    for _ in range(isqrt(x.size + 100)):
         y1, y2 = await asyncio.gather(f(x), f(x))
         bn += m2 * (1 - bn)
         y += 0.5 * m2 * ((y1 - y) + (y2 - y))
@@ -328,7 +328,7 @@ async def optimize_iterator(
     # Estimate the perturbation size that should be used.
     if px is None:
         px = 3e-4 * (1 + 0.25 * np.linalg.norm(x))
-        for _ in range(isqrt(isqrt(x.size + 100) + 100)):
+        for _ in range(isqrt(x.size + 100)):
             # Increase `px` until the change in f(x) is signficiantly larger than the noise.
             while True:
                 # Update the noise.
@@ -373,7 +373,7 @@ async def optimize_iterator(
     gx = np.zeros_like(x)
     slow_gx = np.zeros_like(x)
     square_gx = np.zeros_like(x)
-    for _ in range(isqrt(isqrt(x.size + 100) + 100)):
+    for _ in range(isqrt(x.size + 100)):
         # Compute df/dx in random directions.
         dx = rng.choice((-1.0, 1.0), x.shape)
         dx *= px
@@ -505,7 +505,7 @@ async def optimize_iterator(
         yield variables
         del variables
         await asyncio.sleep(0)
-        if consecutive_fails < 100 * improvement_fails:
+        if consecutive_fails < 128 * (improvement_fails + isqrt(x.size + 100)):
             continue
         # Reset variables if diverging.
         consecutive_fails = 0
@@ -521,4 +521,4 @@ async def optimize_iterator(
         slow_gx *= m2 * (1 - m2) / b2
         square_gx *= m2 * (1 - m2) / b2
         b2 = m2 * (1 - m2)
-        lr /= 16
+        lr /= 16 * improvement_fails

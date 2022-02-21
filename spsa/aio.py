@@ -105,7 +105,7 @@ async def optimize(
     bn = 0.0
     y = 0.0
     noise = 0.0
-    for _ in range(isqrt(isqrt(x.size + 4) + 4)):
+    for _ in range(isqrt(isqrt(x.size + 100) + 100)):
         y1, y2 = await asyncio.gather(f(x), f(x))
         bn += m2 * (1 - bn)
         y += 0.5 * m2 * ((y1 - y) + (y2 - y))
@@ -113,7 +113,7 @@ async def optimize(
     # Estimate the perturbation size that should be used.
     if px is None:
         px = 3e-4 * (1 + 0.25 * np.linalg.norm(x))
-        for _ in range(3):
+        for _ in range(isqrt(isqrt(x.size + 100) + 100)):
             # Increase `px` until the change in f(x) is signficiantly larger than the noise.
             while True:
                 # Update the noise.
@@ -154,7 +154,7 @@ async def optimize(
     gx = np.zeros_like(x)
     slow_gx = np.zeros_like(x)
     square_gx = np.zeros_like(x)
-    for _ in range(isqrt(isqrt(x.size + 4) + 4)):
+    for _ in range(isqrt(isqrt(x.size + 100) + 100)):
         # Compute df/dx in random directions.
         dx = rng.choice((-1.0, 1.0), x.shape)
         dx *= px
@@ -309,7 +309,7 @@ async def optimize_iterator(
     bn = 0.0
     y = 0.0
     noise = 0.0
-    for _ in range(isqrt(isqrt(x.size + 4) + 4)):
+    for _ in range(isqrt(isqrt(x.size + 100) + 100)):
         y1, y2 = await asyncio.gather(f(x), f(x))
         bn += m2 * (1 - bn)
         y += 0.5 * m2 * ((y1 - y) + (y2 - y))
@@ -317,7 +317,7 @@ async def optimize_iterator(
     # Estimate the perturbation size that should be used.
     if px is None:
         px = 3e-4 * (1 + 0.25 * np.linalg.norm(x))
-        for _ in range(3):
+        for _ in range(isqrt(isqrt(x.size + 100) + 100)):
             # Increase `px` until the change in f(x) is signficiantly larger than the noise.
             while True:
                 # Update the noise.
@@ -358,7 +358,7 @@ async def optimize_iterator(
     gx = np.zeros_like(x)
     slow_gx = np.zeros_like(x)
     square_gx = np.zeros_like(x)
-    for _ in range(isqrt(isqrt(x.size + 4) + 4)):
+    for _ in range(isqrt(isqrt(x.size + 100) + 100)):
         # Compute df/dx in random directions.
         dx = rng.choice((-1.0, 1.0), x.shape)
         dx *= px

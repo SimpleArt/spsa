@@ -110,6 +110,7 @@ async def optimize(
         bn += m2 * (1 - bn)
         y += 0.5 * m2 * ((y1 - y) + (y2 - y))
         noise += m2 * ((y1 - y2) ** 2 - noise)
+        await asyncio.sleep(0)
     # Estimate the perturbation size that should be used.
     if px is None:
         px = 3e-4 * (1 + 0.25 * np.linalg.norm(x))
@@ -130,6 +131,7 @@ async def optimize(
                     break
                 # `dx` is dangerously small, so `px` should be increased.
                 px *= 1.2
+                await asyncio.sleep(0)
             # Attempt to decrease `px` to improve the gradient estimate unless the noise is too much.
             for _ in range(3):
                 # Update the noise.
@@ -146,8 +148,10 @@ async def optimize(
                     break
                 # `dx` can be safely decreased, so `px` should be decreased.
                 px /= 1.1
+                await asyncio.sleep(0)
             # Set a minimum perturbation.
             px = max(px, epsilon * (1 + 0.25 * np.linalg.norm(x)))
+            await asyncio.sleep(0)
     # Estimate the gradient and its square.
     b1 = 0.0
     b2 = 0.0
@@ -166,6 +170,7 @@ async def optimize(
         gx += m1 * (df_dx - gx)
         slow_gx += m2 * (df_dx - slow_gx)
         square_gx += m2 * ((slow_gx / b2) ** 2 - square_gx)
+        await asyncio.sleep(0)
     # Estimate the learning rate.
     if lr is None:
         lr = 1e-5
@@ -179,6 +184,7 @@ async def optimize(
                 if y1 < y2:
                     break
                 lr *= 1.4
+                await asyncio.sleep(0)
     # Track the average value of x.
     mx = sqrt(m1 * m2)
     bx = mx
@@ -265,6 +271,7 @@ async def optimize(
         square_gx *= m2 * (1 - m2) / b2
         b2 = m2 * (1 - m2)
         lr /= 16
+        await asyncio.sleep(0)
     return x_min
 
 async def optimize_iterator(
@@ -314,6 +321,7 @@ async def optimize_iterator(
         bn += m2 * (1 - bn)
         y += 0.5 * m2 * ((y1 - y) + (y2 - y))
         noise += m2 * ((y1 - y2) ** 2 - noise)
+        await asyncio.sleep(0)
     # Estimate the perturbation size that should be used.
     if px is None:
         px = 3e-4 * (1 + 0.25 * np.linalg.norm(x))
@@ -334,6 +342,7 @@ async def optimize_iterator(
                     break
                 # `dx` is dangerously small, so `px` should be increased.
                 px *= 1.2
+                await asyncio.sleep(0)
             # Attempt to decrease `px` to improve the gradient estimate unless the noise is too much.
             for _ in range(3):
                 # Update the noise.
@@ -350,8 +359,10 @@ async def optimize_iterator(
                     break
                 # `dx` can be safely decreased, so `px` should be decreased.
                 px /= 1.1
+                await asyncio.sleep(0)
             # Set a minimum perturbation.
             px = max(px, epsilon * (1 + 0.25 * np.linalg.norm(x)))
+            await asyncio.sleep(0)
     # Estimate the gradient and its square.
     b1 = 0.0
     b2 = 0.0
@@ -370,6 +381,7 @@ async def optimize_iterator(
         gx += m1 * (df_dx - gx)
         slow_gx += m2 * (df_dx - slow_gx)
         square_gx += m2 * ((slow_gx / b2) ** 2 - square_gx)
+        await asyncio.sleep(0)
     # Estimate the learning rate.
     if lr is None:
         lr = 1e-5
@@ -383,6 +395,7 @@ async def optimize_iterator(
                 if y1 < y2:
                     break
                 lr *= 1.4
+                await asyncio.sleep(0)
     # Track the average value of x.
     mx = sqrt(m1 * m2)
     bx = mx
@@ -487,6 +500,7 @@ async def optimize_iterator(
         )
         yield variables
         del variables
+        await asyncio.sleep(0)
         if consecutive_fails < 100 * improvement_fails:
             continue
         # Reset variables if diverging.

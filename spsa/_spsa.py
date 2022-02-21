@@ -273,8 +273,11 @@ def optimize(
     bx = mx
     x_avg = mx * x
     # Track the best (x, y).
-    y_min = y
+    y_min = y / bn
     x_min = x.copy()
+    # Track how many times the solution fails to improve.
+    consecutive_fails = 0
+    improvement_fails = 0
     # Initial step size.
     dx = gx / b1
     if adam:
@@ -301,6 +304,8 @@ def optimize(
             dx /= np.sqrt(square_gx / b2 + epsilon)
         # Estimate the noise in f.
         y1 = f(x)
+        y2 = f(x - lr / 3 * dx)
+        y3 = f(x - lr * 3 * dx)
         bn += m2 * (1 - bn)
         y += m2 * (y1 - y)
         noise += m2 * ((y1 - f(x)) ** 2 - noise)
@@ -312,8 +317,6 @@ def optimize(
         elif px > 1e-8 * (1 + 0.25 * np.linalg.norm(x)):
             px /= 1.1
         # Perform line search.
-        y2 = f(x - lr / 3 * dx)
-        y3 = f(x - lr * 3 * dx)
         # Adjust the learning rate towards learning rates which give good results.
         if y1 - 0.25 * sqrt(noise / bn) < min(y2, y3):
             lr /= 1.3
@@ -327,10 +330,29 @@ def optimize(
         x -= lr * dx
         bx += mx / (1 + 0.01 * i) ** 0.303 * (1 - bx)
         x_avg += mx / (1 + 0.01 * i) ** 0.303 * (x - x_avg)
+        consecutive_fails += 1
         # Track the best (x, y).
         if y / bn < y_min:
             y_min = y / bn
             x_min = x_avg / bx
+            consecutive_fails = 0
+        if consecutive_fails < 100 * improvement_fails:
+            continue
+        # Reset variables if diverging.
+        consecutive_fails = 0
+        improvement_fails += 1
+        x = x_min
+        bx = mx * (1 - mx)
+        x_avg = bx * x
+        noise *= m2 * (1 - m2) / bn
+        y = m2 * (1 - m2) * y_min
+        bn = m2 * (1 - m2)
+        b1 = m1 * (1 - m1)
+        gx = b1 / b2 * slow_gx
+        slow_gx *= m2 * (1 - m2) / b2
+        square_gx *= m2 * (1 - m2) / b2
+        b2 = m2 * (1 - m2)
+        lr /= 16
     return x_min
 
 def optimize_iterator(
@@ -495,6 +517,9 @@ def optimize_iterator(
     # Track the best (x, y).
     y_min = y
     x_min = x.copy()
+    # Track how many times the solution fails to improve.
+    consecutive_fails = 0
+    improvement_fails = 0
     # Generate initial iteration.
     variables = dict(
         x_min=x_min,
@@ -566,10 +591,12 @@ def optimize_iterator(
         x -= lr * dx
         bx += mx / (1 + 0.01 * i) ** 0.303 * (1 - bx)
         x_avg += mx / (1 + 0.01 * i) ** 0.303 * (x - x_avg)
+        consecutive_fails += 1
         # Track the best (x, y).
         if y / bn < y_min:
             y_min = y / bn
             x_min = x_avg / bx
+            consecutive_fails = 0
         # Generate the variables for the next iteration.
         variables = dict(
             x_min=x_min,
@@ -588,3 +615,24 @@ def optimize_iterator(
         )
         yield variables
         del variables
+        if consecutive_fails < 100 * improvement_fails:
+            continue
+        # Reset variables if diverging.
+        consecutive_fails = 0
+        improvement_fails += 1
+        x = x_min
+        bx = mx * (1 - mx)
+        x_avg = bx * x
+        noise *= m2 * (1 - m2) / bn
+        y = m2 * (1 - m2) * y_min
+        bn = m2 * (1 - m2)
+        b1 = m1 * (1 - m1)
+        gx = b1 / b2 * slow_gx
+        slow_gx *= m2 * (1 - m2) / b2
+        square_gx *= m2 * (1 - m2) / b2
+        b2 = m2 * (1 - m2)
+        lr /= 16
+        # Track the best (x, y).
+        if y / bn < y_min:
+            y_min = y / bn
+            x_min = x_avg / bx

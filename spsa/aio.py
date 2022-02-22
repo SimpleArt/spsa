@@ -47,7 +47,7 @@ import numpy as np
 
 from ._spsa import ArrayLike, OptimizerVariables, _type_check
 
-__all__ = ["optimize", "optimize_iterator"]
+__all__ = ["maximize", "optimize", "optimize_iterator"]
 
 async def maximize(f: Callable[[np.ndarray], Awaitable[float]], /) -> Callable[[np.ndarray], Awaitable[float]]:
     """

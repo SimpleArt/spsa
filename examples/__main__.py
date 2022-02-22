@@ -12,6 +12,7 @@ def main() -> None:
     print("All examples:")
     print("-" * 140)
     ackley.main()
+    beale.main()
     ellipse.main()
     rastrigin.main()
     rosenbrock.main()

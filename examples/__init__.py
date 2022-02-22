@@ -1,3 +1,3 @@
 from .__main__ import *
 
-__all__ = ["ackley", "ellipse", "ellipse_with_noise", "main", "rastrigin", "rosenbrock", "sphere", "sphere_with_noise"]
+__all__ = ["ackley", "beale", "ellipse", "main", "rastrigin", "rosenbrock", "sphere"]

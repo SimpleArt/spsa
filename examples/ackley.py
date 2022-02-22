@@ -1,7 +1,7 @@
 import numpy as np
-import spsa
+from examples._utils import run
 
-def ackley(x: np.ndarray) -> float:
+def function(x: np.ndarray) -> float:
     """
     The Ackley function is
         -20 exp(-0.2 sqrt(0.5 (x^2 + y^2)))
@@ -13,11 +13,7 @@ def ackley(x: np.ndarray) -> float:
     )
 
 def main() -> None:
-    print("Ackley:")
-    x = spsa.optimize(ackley, (2, 3))
-    print(f"y = {ackley(x)}")
-    print(f"x = {x}")
-    print("-" * 140)
+    run(function, (2, 3), "Ackley", noise=0.1)
 
 if __name__ == "__main__":
     main()

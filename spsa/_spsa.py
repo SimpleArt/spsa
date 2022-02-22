@@ -164,6 +164,13 @@ def optimize(
             e.g. Bayesian optimization or genetic algorithms. Some may need specialized
             algorithms for the specific situation.
 
+            If the objective function is noisy then SPSA will increase its change in input
+            until a significant change in output is detected i.e. the result isn't just noise.
+
+            NOTE: SPSA assumes that the result y = f(x) has at least 1e-64 * y noise, so if
+                  there is no change in y, then the change in x automatically increases to try
+                  to search for significant changes. In some cases, this may be sufficient.
+
         Basin-Hopping Input Noise:
             Some functions have many local minima, causing SPSA and similar methods to run
             into bad solutions. This can, to some extent, be countered using `spsa.with_input_noise`.
@@ -307,30 +314,36 @@ def optimize(
             # Increase `px` until the change in f(x) is signficiantly larger than the noise.
             while True:
                 # Update the noise.
-                temp = f(x)
+                y1 = f(x)
+                y2 = f(x)
                 bn += m2 * (1 - bn)
-                y += m2 * (temp - y)
-                noise += m2 * ((temp - f(x)) ** 2 - noise)
+                y += 0.5 * m2 * ((y1 - y) + (y2 - y))
+                noise += m2 * ((y1 - y2) ** 2 - noise)
                 # Compute a change in f(x) in a random direction.
                 dx = rng.choice((-1.0, 1.0), x.shape)
                 dx *= px
                 # Stop if sufficiently accurate.
-                if (f(x + dx) - f(x - dx)) ** 2 > 8 * noise / bn:
+                y1 = f(x + dx)
+                y2 = f(x - dx)
+                if (y1 - y2) ** 2 > 8 * noise / bn:
                     break
                 # `dx` is dangerously small, so `px` should be increased.
                 px *= 1.2
             # Attempt to decrease `px` to improve the gradient estimate unless the noise is too much.
             for _ in range(3):
                 # Update the noise.
-                temp = f(x)
+                y1 = f(x)
+                y2 = f(x)
                 bn += m2 * (1 - bn)
-                y += m2 * (temp - y)
-                noise += m2 * ((temp - f(x)) ** 2 - noise)
+                y += 0.5 * m2 * ((y1 - y) + (y2 - y))
+                noise += m2 * ((y1 - y2) ** 2 - noise)
                 # Compute a change in f(x) in a random direction.
                 dx = rng.choice((-1.0, 1.0), x.shape)
                 dx *= px
                 # Stop if too much noise.
-                if (f(x + dx) - f(x - dx)) ** 2 < 8 * noise / bn:
+                y1 = f(x + dx)
+                y2 = f(x - dx)
+                if (y1 - y2) ** 2 < 8 * noise / bn:
                     break
                 # `dx` can be safely decreased, so `px` should be decreased.
                 px /= 1.1
@@ -386,7 +399,9 @@ def optimize(
         dx = rng.choice((-1.0, 1.0), x.shape)
         dx *= px / (1 + px_decay * i) ** px_power
         dx /= np.sqrt(square_gx / b2 + epsilon)
-        df = (f(x_next + dx) - f(x_next - dx)) / 2
+        y1 = f(x_next + dx)
+        y2 = f(x_next - dx)
+        df = (y1 - y2) / 2
         df_dx = dx * (df * sqrt(x.size) / np.linalg.norm(dx) ** 2)
         # Update the gradients.
         b1 += m1 * (1 - b1)
@@ -398,27 +413,29 @@ def optimize(
         dx = gx / (b1 * (1 + lr_decay * i) ** lr_power)
         if adam:
             dx /= np.sqrt(square_gx / b2 + epsilon)
+        # Sample points.
+        y3 = f(x)
+        y4 = f(x - lr / 3 * dx)
+        y5 = f(x - lr * 3 * dx)
+        y6 = f(x)
         # Estimate the noise in f.
-        y1 = f(x)
-        y2 = f(x - lr / 3 * dx)
-        y3 = f(x - lr * 3 * dx)
         bn += m2 * (1 - bn)
-        y += m2 * (y1 - y)
-        noise += m2 * ((y1 - f(x)) ** 2 - noise)
+        y += m2 * (y3 - y)
+        noise += m2 * ((y3 - y6) ** 2 + 1e-64 * (abs(y3) + abs(y6)) - noise)
         # Update `px` depending on the noise and gradient.
         # `dx` is dangerously small, so `px` should be increased.
-        if df ** 2 < 2 * noise / bn:
+        if (y1 - y2) ** 2 < 8 * noise / bn:
             px *= 1.2
         # `dx` can be safely decreased, so `px` should be decreased.
         elif px > 1e-8 * (1 + 0.25 * np.linalg.norm(x)):
             px /= 1.1
         # Perform line search.
         # Adjust the learning rate towards learning rates which give good results.
-        if y1 - 0.25 * sqrt(noise / bn) < min(y2, y3):
+        if y3 - 0.25 * sqrt(noise / bn) < min(y4, y5):
             lr /= 1.3
-        if y2 - 0.25 * sqrt(noise / bn) < min(y1, y3):
+        if y4 - 0.25 * sqrt(noise / bn) < min(y3, y5):
             lr *= 1.3 / 1.4
-        if y3 - 0.25 * sqrt(noise / bn) < min(y1, y2):
+        if y5 - 0.25 * sqrt(noise / bn) < min(y3, y4):
             lr *= 1.4
         # Set a minimum learning rate.
         lr = max(lr, epsilon / (1 + 0.01 * i) ** 0.5 * (1 + 0.25 * np.linalg.norm(x)))
@@ -560,30 +577,36 @@ def optimize_iterator(
             # Increase `px` until the change in f(x) is signficiantly larger than the noise.
             while True:
                 # Update the noise.
-                temp = f(x)
+                y1 = f(x)
+                y2 = f(x)
                 bn += m2 * (1 - bn)
-                y += m2 * (temp - y)
-                noise += m2 * ((temp - f(x)) ** 2 - noise)
+                y += 0.5 * m2 * ((y1 - y) + (y2 - y))
+                noise += m2 * ((y1 - y2) ** 2 + 1e-64 * (abs(y1) + abs(y2)) - noise)
                 # Compute a change in f(x) in a random direction.
                 dx = rng.choice((-1.0, 1.0), x.shape)
                 dx *= px
                 # Stop if sufficiently accurate.
-                if (f(x + dx) - f(x - dx)) ** 2 > 8 * noise / bn:
+                y1 = f(x + dx)
+                y2 = f(x - dx)
+                if (y1 - y2) ** 2 > 8 * noise / bn:
                     break
                 # `dx` is dangerously small, so `px` should be increased.
                 px *= 1.2
             # Attempt to decrease `px` to improve the gradient estimate unless the noise is too much.
             for _ in range(3):
                 # Update the noise.
-                temp = f(x)
+                y1 = f(x)
+                y2 = f(x)
                 bn += m2 * (1 - bn)
-                y += m2 * (temp - y)
-                noise += m2 * ((temp - f(x)) ** 2 - noise)
+                y += 0.5 * m2 * ((y1 - y) + (y2 - y))
+                noise += m2 * ((y1 - y2) ** 2 + 1e-64 * (abs(y1) + abs(y2)) - noise)
                 # Compute a change in f(x) in a random direction.
                 dx = rng.choice((-1.0, 1.0), x.shape)
                 dx *= px
                 # Stop if too much noise.
-                if (f(x + dx) - f(x - dx)) ** 2 < 8 * noise / bn:
+                y1 = f(x + dx)
+                y2 = f(x - dx)
+                if (y1 - y2) ** 2 < 8 * noise / bn:
                     break
                 # `dx` can be safely decreased, so `px` should be decreased.
                 px /= 1.1
@@ -657,40 +680,43 @@ def optimize_iterator(
         dx = rng.choice((-1.0, 1.0), x.shape)
         dx *= px / (1 + px_decay * i) ** px_power
         dx /= np.sqrt(square_gx / b2 + epsilon)
-        df = (f(x_next + dx) - f(x_next - dx)) / 2
+        y1 = f(x_next + dx)
+        y2 = f(x_next - dx)
+        df = (y1 - y2) / 2
         df_dx = dx * (df * sqrt(x.size) / np.linalg.norm(dx) ** 2)
         # Update the gradients.
         b1 += m1 * (1 - b1)
+        b2 += m2 * (1 - b2)
         gx += m1 * (df_dx - gx)
-        if adam:
-            b2 += m2 * (1 - b2)
-            slow_gx += m2 * (df_dx - slow_gx)
-            square_gx += m2 * ((slow_gx / b2) ** 2 - square_gx)
+        slow_gx += m2 * (df_dx - slow_gx)
+        square_gx += m2 * ((slow_gx / b2) ** 2 - square_gx)
         # Compute the step size.
         dx = gx / (b1 * (1 + lr_decay * i) ** lr_power)
         if adam:
             dx /= np.sqrt(square_gx / b2 + epsilon)
+        # Sample points.
+        y3 = f(x)
+        y4 = f(x - lr / 3 * dx)
+        y5 = f(x - lr * 3 * dx)
+        y6 = f(x)
         # Estimate the noise in f.
-        y1 = f(x)
-        y2 = f(x - lr / 3 * dx)
-        y3 = f(x - lr * 3 * dx)
         bn += m2 * (1 - bn)
-        y += m2 * (y1 - y)
-        noise += m2 * ((y1 - f(x)) ** 2 - noise)
+        y += m2 * (y3 - y)
+        noise += m2 * ((y3 - y6) ** 2 + 1e-64 * (abs(y3) + abs(y6)) - noise)
         # Update `px` depending on the noise and gradient.
         # `dx` is dangerously small, so `px` should be increased.
-        if df ** 2 < 2 * noise / bn:
+        if (y1 - y2) ** 2 < 8 * noise / bn:
             px *= 1.2
         # `dx` can be safely decreased, so `px` should be decreased.
         elif px > 1e-8 * (1 + 0.25 * np.linalg.norm(x)):
             px /= 1.1
         # Perform line search.
         # Adjust the learning rate towards learning rates which give good results.
-        if y1 - 0.25 * sqrt(noise / bn) < min(y2, y3):
+        if y3 - 0.25 * sqrt(noise / bn) < min(y4, y5):
             lr /= 1.3
-        if y2 - 0.25 * sqrt(noise / bn) < min(y1, y3):
+        if y4 - 0.25 * sqrt(noise / bn) < min(y3, y5):
             lr *= 1.3 / 1.4
-        if y3 - 0.25 * sqrt(noise / bn) < min(y1, y2):
+        if y5 - 0.25 * sqrt(noise / bn) < min(y3, y4):
             lr *= 1.4
         # Set a minimum learning rate.
         lr = max(lr, epsilon / (1 + 0.01 * i) ** 0.5 * (1 + 0.25 * np.linalg.norm(x)))

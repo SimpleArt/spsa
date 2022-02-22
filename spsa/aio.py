@@ -143,7 +143,7 @@ async def optimize(
                 y1, y2 = await asyncio.gather(f(x), f(x))
                 bn += m2 * (1 - bn)
                 y += 0.5 * m2 * ((y1 - y) + (y2 - y))
-                noise += m2 * ((y1 - y2) ** 2 - noise)
+                noise += m2 * ((y1 - y2) ** 2 + 1e-64 * (abs(y1) + abs(y2)) - noise)
                 # Compute a change in f(x) in a random direction.
                 dx = rng.choice((-1.0, 1.0), x.shape)
                 dx *= px
@@ -160,7 +160,7 @@ async def optimize(
                 y1, y2 = await asyncio.gather(f(x), f(x))
                 bn += m2 * (1 - bn)
                 y += 0.5 * m2 * ((y1 - y) + (y2 - y))
-                noise += m2 * ((y1 - y2) ** 2 - noise)
+                noise += m2 * ((y1 - y2) ** 2 + 1e-64 * (abs(y1) + abs(y2)) - noise)
                 # Compute a change in f(x) in a random direction.
                 dx = rng.choice((-1.0, 1.0), x.shape)
                 dx *= px
@@ -230,7 +230,6 @@ async def optimize(
         dx = rng.choice((-1.0, 1.0), x.shape)
         dx *= px / (1 + px_decay * i) ** px_power
         dx /= np.sqrt(square_gx / b2 + epsilon)
-        df = (f(x_next + dx) - f(x_next - dx)) / 2
         y1, y2 = await asyncio.gather(f(x_next + dx), f(x_next - dx))
         df = (y1 - y2) / 2
         df_dx = dx * (df * sqrt(x.size) / np.linalg.norm(dx) ** 2)
@@ -244,26 +243,26 @@ async def optimize(
         dx = gx / (b1 * (1 + lr_decay * i) ** lr_power)
         if adam:
             dx /= np.sqrt(square_gx / b2 + epsilon)
-        # Sample points in parallel.
-        y1, y2, y3, y0 = await asyncio.gather(f(x), f(x - lr / 3 * dx), f(x - lr * 3 * dx), f(x))
+        # Sample points concurrently.
+        y3, y4, y5, y6 = await asyncio.gather(f(x), f(x - lr / 3 * dx), f(x - lr * 3 * dx), f(x))
         # Estimate the noise in f.
         bn += m2 * (1 - bn)
-        y += 0.5 * m2 * ((y0 - y) + (y1 - y))
-        noise += m2 * ((y0 - y1) ** 2 - noise)
+        y += m2 * (y3 - y)
+        noise += m2 * ((y3 - y6) ** 2 + 1e-64 * (abs(y3) + abs(y6)) - noise)
         # Update `px` depending on the noise and gradient.
         # `dx` is dangerously small, so `px` should be increased.
-        if df ** 2 < 2 * noise / bn:
+        if (y1 - y2) ** 2 < 8 * noise / bn:
             px *= 1.2
         # `dx` can be safely decreased, so `px` should be decreased.
         elif px > 1e-8 * (1 + 0.25 * np.linalg.norm(x)):
             px /= 1.1
         # Perform line search.
         # Adjust the learning rate towards learning rates which give good results.
-        if y1 - 0.25 * sqrt(noise / bn) < min(y2, y3):
+        if y3 - 0.25 * sqrt(noise / bn) < min(y4, y5):
             lr /= 1.3
-        if y2 - 0.25 * sqrt(noise / bn) < min(y1, y3):
+        if y4 - 0.25 * sqrt(noise / bn) < min(y3, y5):
             lr *= 1.3 / 1.4
-        if y3 - 0.25 * sqrt(noise / bn) < min(y1, y2):
+        if y5 - 0.25 * sqrt(noise / bn) < min(y3, y4):
             lr *= 1.4
         # Set a minimum learning rate.
         lr = max(lr, epsilon / (1 + 0.01 * i) ** 0.5 * (1 + 0.25 * np.linalg.norm(x)))
@@ -356,7 +355,7 @@ async def optimize_iterator(
                 y1, y2 = await asyncio.gather(f(x), f(x))
                 bn += m2 * (1 - bn)
                 y += 0.5 * m2 * ((y1 - y) + (y2 - y))
-                noise += m2 * ((y1 - y2) ** 2 - noise)
+                noise += m2 * ((y1 - y2) ** 2 + 1e-64 * (abs(y1) + abs(y2)) - noise)
                 # Compute a change in f(x) in a random direction.
                 dx = rng.choice((-1.0, 1.0), x.shape)
                 dx *= px
@@ -373,7 +372,7 @@ async def optimize_iterator(
                 y1, y2 = await asyncio.gather(f(x), f(x))
                 bn += m2 * (1 - bn)
                 y += 0.5 * m2 * ((y1 - y) + (y2 - y))
-                noise += m2 * ((y1 - y2) ** 2 - noise)
+                noise += m2 * ((y1 - y2) ** 2 + 1e-64 * (abs(y1) + abs(y2)) - noise)
                 # Compute a change in f(x) in a random direction.
                 dx = rng.choice((-1.0, 1.0), x.shape)
                 dx *= px
@@ -474,26 +473,26 @@ async def optimize_iterator(
         dx = gx / (b1 * (1 + lr_decay * i) ** lr_power)
         if adam:
             dx /= np.sqrt(square_gx / b2 + epsilon)
-        # Sample points in parallel.
-        y1, y2, y3, y0 = await asyncio.gather(f(x), f(x - lr / 3 * dx), f(x - lr * 3 * dx), f(x))
+        # Sample points concurrently.
+        y3, y4, y5, y6 = await asyncio.gather(f(x), f(x - lr / 3 * dx), f(x - lr * 3 * dx), f(x))
         # Estimate the noise in f.
         bn += m2 * (1 - bn)
-        y += 0.5 * m2 * ((y0 - y) + (y1 - y))
-        noise += m2 * ((y0 - y1) ** 2 - noise)
+        y += m2 * (y3 - y)
+        noise += m2 * ((y3 - y6) ** 2 + 1e-64 * (abs(y3) + abs(y6)) - noise)
         # Update `px` depending on the noise and gradient.
         # `dx` is dangerously small, so `px` should be increased.
-        if df ** 2 < 2 * noise / bn:
+        if (y1 - y2) ** 2 < 8 * noise / bn:
             px *= 1.2
         # `dx` can be safely decreased, so `px` should be decreased.
         elif px > 1e-8 * (1 + 0.25 * np.linalg.norm(x)):
             px /= 1.1
         # Perform line search.
         # Adjust the learning rate towards learning rates which give good results.
-        if y1 - 0.25 * sqrt(noise / bn) < min(y2, y3):
+        if y3 - 0.25 * sqrt(noise / bn) < min(y4, y5):
             lr /= 1.3
-        if y2 - 0.25 * sqrt(noise / bn) < min(y1, y3):
+        if y4 - 0.25 * sqrt(noise / bn) < min(y3, y5):
             lr *= 1.3 / 1.4
-        if y3 - 0.25 * sqrt(noise / bn) < min(y1, y2):
+        if y5 - 0.25 * sqrt(noise / bn) < min(y3, y4):
             lr *= 1.4
         # Set a minimum learning rate.
         lr = max(lr, epsilon / (1 + 0.01 * i) ** 0.5 * (1 + 0.25 * np.linalg.norm(x)))

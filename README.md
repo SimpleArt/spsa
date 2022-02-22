@@ -57,7 +57,7 @@ A comparison of SPSA, Gradient Descent, and Bayesian Optimization are shown belo
 
 [1]: Normally requires only 2 calls, but linear search and noise-adjusting perturbation sizes require a few extra calls per iteration.
 
-[2]: Use f(round(x)), px=0.5, and px_decay=0.
+[2]: Use `f(round(x))`, `px=0.5`, `px_decay=0`, and `px_tune=False`.
 
 [3]: Use a different Gaussian process.
 

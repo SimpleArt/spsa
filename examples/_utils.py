@@ -19,8 +19,8 @@ def random_input_noise(f: Callable[[np.ndarray], float], noise: float, /) -> Cal
     return wrapper
 
 HEADERS: Dict[Callable, str] = {
-    controlled_input_noise: "{} with controlled input noise",
-    random_input_noise: "{} with random input noise",
+    controlled_input_noise: "{} with controlled input noise:",
+    random_input_noise: "{} with random input noise:",
 }
 
 def run(f: Callable[[np.ndarray], float], x: Tuple[float], /, name: str, *args: Any, noise: float, **kwargs: Any) -> None:

@@ -41,13 +41,13 @@ import operator
 import random
 
 from math import isinf, isnan, isqrt, sqrt
-from typing import AsyncIterator, Awaitable, Callable, Optional, Sequence, SupportsIndex
+from typing import AsyncIterator, Awaitable, Callable, Optional, Sequence, SupportsFloat, SupportsIndex, Tuple
 
 import numpy as np
 
 from ._spsa import ArrayLike, OptimizerVariables, _type_check
 
-__all__ = ["maximize", "optimize", "optimize_iterator"]
+__all__ = ["maximize", "optimize", "optimize_iterator", "with_input_noise"]
 
 async def maximize(f: Callable[[np.ndarray], Awaitable[float]], /) -> Callable[[np.ndarray], Awaitable[float]]:
     """
@@ -61,6 +61,27 @@ async def maximize(f: Callable[[np.ndarray], Awaitable[float]], /) -> Callable[[
     @wraps(f)
     async def wrapper(x: np.ndarray, /) -> float:
         return -(await f(x))
+    return wrapper
+
+def with_input_noise(f: Callable[[np.ndarray], Awaitable[float]], /, noise: float) -> Callable[[np.ndarray], Awaitable[float]]:
+    """Adds noise to the input before calling."""
+    if not callable(f):
+        raise TypeError(f"f must be callable, got {f!r}")
+    elif not isinstance(noise, SupportsFloat):
+        raise TypeError(f"noise must be real, got {noise!r}")
+    noise = float(noise)
+    rng = np.random.default_rng()
+    def rng_iterator(shape: Tuple[int, ...]) -> Iterator[np.ndarray]:
+        while True:
+            random_noise = rng.uniform(-noise, noise, shape)
+            yield random_noise
+            yield random_noise
+    rng_iter: Optional[Iterator[float]] = None
+    async def wrapper(x: np.ndarray) -> float:
+        nonlocal rng_iter
+        if rng_iter is None:
+            rng_iter = rng_iterator(x.shape)
+        return await f(x + next(rng_iter))
     return wrapper
 
 async def optimize(

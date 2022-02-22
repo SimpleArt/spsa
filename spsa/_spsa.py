@@ -3,11 +3,11 @@ import random
 
 from functools import wraps
 from math import isinf, isnan, isqrt, sqrt
-from typing import Any, AsyncIterator, Awaitable, Callable, Iterator, Optional, Sequence, SupportsIndex, TypedDict, Union
+from typing import Any, AsyncIterator, Awaitable, Callable, Iterator, Optional, Sequence, SupportsFloat, SupportsIndex, Tuple, TypedDict, Union
 
 import numpy as np
 
-__all__ = ["maximize", "optimize", "optimize_iterator"]
+__all__ = ["maximize", "optimize", "optimize_iterator", "with_input_noise"]
 
 ArrayLike = Union[
     np.ndarray,
@@ -110,6 +110,27 @@ def maximize(f: Callable[[np.ndarray], float], /) -> Callable[[np.ndarray], floa
         return -f(x)
     return wrapper
 
+def with_input_noise(f: Callable[[np.ndarray], float], /, noise: float) -> Callable[[np.ndarray], float]:
+    """Adds noise to the input before calling."""
+    if not callable(f):
+        raise TypeError(f"f must be callable, got {f!r}")
+    elif not isinstance(noise, SupportsFloat):
+        raise TypeError(f"noise must be real, got {noise!r}")
+    noise = float(noise)
+    rng = np.random.default_rng()
+    def rng_iterator(shape: Tuple[int, ...]) -> Iterator[np.ndarray]:
+        while True:
+            random_noise = rng.uniform(-noise, noise, shape)
+            yield random_noise
+            yield random_noise
+    rng_iter: Optional[Iterator[float]] = None
+    def wrapper(x: np.ndarray) -> float:
+        nonlocal rng_iter
+        if rng_iter is None:
+            rng_iter = rng_iterator(x.shape)
+        return f(x + next(rng_iter))
+    return wrapper
+
 def optimize(
     f: Callable[[np.ndarray], float],
     x: ArrayLike,
@@ -128,20 +149,89 @@ def optimize(
     epsilon: float = 1e-7,
 ) -> np.ndarray:
     """
-    Implementation of the SPSA optimization algorithm with adaptive momentum (Adam) and learning rate tuning (line search).
+    Implementation of the SPSA optimization algorithm.
 
-    See `help(spsa)` for more details.
+    Defining Objective Functions
+    -----------------------------
+    Defining your objective function f appropriately can significantly change how well SPSA performs.
+    Here are some tips and tricks on how to define good objective functions.
+
+        Detectable Changes:
+            SPSA requires changes in inputs to lead to changes in outputs.
+            Otherwise SPSA will be unable to determine how inputs should change.
+
+            This isn't possible for all problems. Some may require other algorithms
+            e.g. Bayesian optimization or genetic algorithms. Some may need specialized
+            algorithms for the specific situation.
+
+        Basin-Hopping Input Noise:
+            Some functions have many local minima, causing SPSA and similar methods to run
+            into bad solutions. This can, to some extent, be countered using `spsa.with_input_noise`.
+
+                def f(x):
+                    return ...
+
+                x = spsa.optimize(spsa.with_input_noise(f, noise=0.5), ...)
+
+            In this way, SPSA will explore neighboring inputs instead of getting stuck in a "basin".
+            If the noise is sufficiently high, and there is a general trend in the direction of the
+            basins towards the best basin, then this will converge to the locally best basin.
+
+            NOTE: Not all functions perform better with input noise, some may perform worse.
+
+        Stochastic vs Deterministic Functions:
+            SPSA does not require deterministic functions.
+
+            If it is more efficient to use a stochastic (random) function e.g. by using a random
+            sample in a dataset each time instead of the whole dataset, then do that instead.
+
+            High-precision accuracy is not possible in this case, but you will get more out of
+            your calculations this way.
+
+            Running a few iterations afterwards with a deterministic variant, if reasonable, can
+            be used to get high-precision accuracy if needed.
+
+        Controllable Stochastic Functions:
+            If the "noise" in the function can be controlled by a second parameter, then the
+            performance of SPSA can be significantly improved by making every pair of calls
+            use the same "noise parameter". This can be implemented as follows:
+
+                from functools import partial
+
+                def rng_iterator():
+                    while True:
+                        random_value = ...  # A sample from a dataset for example.
+                        yield random_value
+                        yield random_value
+
+                def f(x, rng):
+                    random_value = next(rng)
+                    return ...
+
+                x = spsa.optimize(partial(f, rng=rng_iterator()), ...)
+
+        Twice Differentiable:
+            It is not required, but it would be good if the objective function is twice
+            differentiable. SPSA assumes the objective function is relatively smooth in
+            order to converge well. Otherwise it will struggle to move around points
+            where the function is not very smooth.
+
+            For stochastic functions, it is expected that the expected value is smooth.
 
     Parameters
     -----------
         f:
             The function being optimized. Called as `f(array) -> float`.
+
         x:
             The initial point used. This value is edited and returned.
+
         adam:
             True to use Adam, False to not use it.
+
         iterations:
             The number of iterations ran.
+
         lr:
         lr_decay:
         lr_power:
@@ -154,6 +244,7 @@ def optimize(
 
             Furthermore, the learning rate is automatically tuned every iteration to produce
             improved convergence and allow flexible learning rates.
+
         px:
         px_decay:
         px_power:
@@ -168,11 +259,14 @@ def optimize(
 
             Furthermore, the perturbation size is automatically tuned every iteration to produce
             more accurate gradient approximations, reducing chaotic behavior.
+
         momentum:
             The momentum controls how much of the gradient is kept from previous iterations.
+
         beta:
             A secondary momentum, which should be much closer to 1 than the other momentum.
             This is used by the Adam method.
+
         epsilon:
             Used to avoid division by 0 in the Adam method.
 
@@ -386,17 +480,22 @@ def optimize_iterator(
         optimizer_variables:
             A dictionary containing optimizer variables.
 
+            NOTE: Most variables come with a corresponding beta variable which should be used.
+
             NOTE: x, gradient, slow_gradient, and square_gradient are mutable numpy arrays.
                   Modifying them may mess up the optimizer.
 
             x_min:
             y_min:
                 The best seen estimated minimum of f.
+
             x:
             y:
                 The current estimated minimum of f.
+
             lr:
                 The current learning rate (not including decay).
+
             beta_x
             beta_noise:
             beta1:
@@ -412,15 +511,19 @@ def optimize_iterator(
 
                 On their own, the estimates are closer to 0 than they should be
                 and need to be divided by their respective betas for correction.
+
             noise:
                 An estimate for how much noise is in f(x).
                 Used for SPSA.
+
             gradient:
                 The estimated gradient of f at x.
+
             slow_gradient:
                 The slower estimate of the gradient of f at x.
                 Biased more towards previous iterations.
                 Used for the square_gradient.
+
             square_gradient:
                 An estimate for the component-wise square of the gradient of f at x.
                 Used for the Adam method and perturbation size rescaling.

@@ -105,9 +105,9 @@ Parallel Calls
     Bayesian Optimization:
         Obvious places for parallel calls.
 """
-from ._spsa import maximize, optimize, optimize_iterator
+from ._spsa import maximize, optimize, optimize_iterator, with_input_noise
 import spsa.aio as aio
 
-__all__ = ["aio", "maximize", "optimize", "optimize_iterator"]
+__all__ = ["aio", "maximize", "optimize", "optimize_iterator", with_input_noise]
 
 __version__ = "0.0.2"

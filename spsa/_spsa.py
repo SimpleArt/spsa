@@ -415,8 +415,8 @@ def optimize(
             dx /= np.sqrt(square_gx / b2 + epsilon)
         # Sample points.
         y3 = f(x)
-        y4 = f(x - lr / 3 * dx)
-        y5 = f(x - lr * 3 * dx)
+        y4 = f(x - lr * m1 * dx)
+        y5 = f(x - lr / m1 * dx)
         y6 = f(x)
         # Estimate the noise in f.
         bn += m2 * (1 - bn)
@@ -694,8 +694,8 @@ def optimize_iterator(
             dx /= np.sqrt(square_gx / b2 + epsilon)
         # Sample points.
         y3 = f(x)
-        y4 = f(x - lr / 3 * dx)
-        y5 = f(x - lr * 3 * dx)
+        y4 = f(x - lr * m1 * dx)
+        y5 = f(x - lr / m1 * dx)
         y6 = f(x)
         # Estimate the noise in f.
         bn += m2 * (1 - bn)

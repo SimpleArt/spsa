@@ -244,7 +244,7 @@ async def optimize(
         if adam:
             dx /= np.sqrt(square_gx / b2 + epsilon)
         # Sample points concurrently.
-        y3, y4, y5, y6 = await asyncio.gather(f(x), f(x - lr / 3 * dx), f(x - lr * 3 * dx), f(x))
+        y3, y4, y5, y6 = await asyncio.gather(f(x), f(x - lr * m1 * dx), f(x - lr / m1 * dx), f(x))
         # Estimate the noise in f.
         bn += m2 * (1 - bn)
         y += m2 * (y3 - y)
@@ -472,7 +472,7 @@ async def optimize_iterator(
         if adam:
             dx /= np.sqrt(square_gx / b2 + epsilon)
         # Sample points concurrently.
-        y3, y4, y5, y6 = await asyncio.gather(f(x), f(x - lr / 3 * dx), f(x - lr * 3 * dx), f(x))
+        y3, y4, y5, y6 = await asyncio.gather(f(x), f(x - lr * m1 * dx), f(x - lr / m1 * dx), f(x))
         # Estimate the noise in f.
         bn += m2 * (1 - bn)
         y += m2 * (y3 - y)

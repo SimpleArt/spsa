@@ -645,13 +645,13 @@ def optimize_iterator(
     bx = mx
     x_avg = mx * x
     # Track the best (x, y).
-    y_min = y
+    y_min = y / bn
     x_min = x.copy()
     # Track how many times the solution fails to improve.
     consecutive_fails = 0
     improvement_fails = 0
     # Generate initial iteration.
-    variables = dict(
+    yield dict(
         x_min=x_min,
         y_min=y_min,
         x=x_avg,
@@ -666,8 +666,6 @@ def optimize_iterator(
         slow_gradient=slow_gx,
         square_gradient=square_gx,
     )
-    yield variables
-    del variables
     # Initial step size.
     dx = gx / b1
     if adam:
@@ -731,7 +729,7 @@ def optimize_iterator(
             x_min = x_avg / bx
             consecutive_fails = 0
         # Generate the variables for the next iteration.
-        variables = dict(
+        yield dict(
             x_min=x_min,
             y_min=y_min,
             x=x_avg,
@@ -746,8 +744,6 @@ def optimize_iterator(
             slow_gradient=slow_gx,
             square_gradient=square_gx,
         )
-        yield variables
-        del variables
         if consecutive_fails < 128 * (improvement_fails + isqrt(x.size + 100)):
             continue
         # Reset variables if diverging.

@@ -81,7 +81,7 @@ def with_input_noise(f: Callable[[np.ndarray], Awaitable[float]], /, noise: floa
         nonlocal rng_iter
         if rng_iter is None:
             rng_iter = rng_iterator(x.shape)
-        return await f(x + next(rng_iter))
+        return (f(x + dx) + f(x - dx)) / 2
     return wrapper
 
 async def optimize(

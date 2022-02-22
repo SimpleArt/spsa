@@ -128,7 +128,8 @@ def with_input_noise(f: Callable[[np.ndarray], float], /, noise: float) -> Calla
         nonlocal rng_iter
         if rng_iter is None:
             rng_iter = rng_iterator(x.shape)
-        return f(x + next(rng_iter))
+        dx = next(rng_iter)
+        return (f(x + dx) + f(x - dx)) / 2
     return wrapper
 
 def optimize(

@@ -325,7 +325,7 @@ def optimize(
                 # Stop if sufficiently accurate.
                 y1 = f(x + dx)
                 y2 = f(x - dx)
-                if (y1 - y2) ** 2 > 8 * noise / bn:
+                if (y1 - y2) ** 2 > 8 * noise / bn or px > 1e-8 + np.linalg.norm(x):
                     break
                 # `dx` is dangerously small, so `px` should be increased.
                 px *= 1.2
@@ -424,7 +424,7 @@ def optimize(
         noise += m2 * ((y3 - y6) ** 2 + 1e-64 * (abs(y3) + abs(y6)) - noise)
         # Update `px` depending on the noise and gradient.
         # `dx` is dangerously small, so `px` should be increased.
-        if (y1 - y2) ** 2 < 8 * noise / bn:
+        if (y1 - y2) ** 2 < 8 * noise / bn and px < 1e-8 + np.linalg.norm(x):
             px *= 1.2
         # `dx` can be safely decreased, so `px` should be decreased.
         elif px > 1e-8 * (1 + 0.25 * np.linalg.norm(x)):
@@ -588,7 +588,7 @@ def optimize_iterator(
                 # Stop if sufficiently accurate.
                 y1 = f(x + dx)
                 y2 = f(x - dx)
-                if (y1 - y2) ** 2 > 8 * noise / bn:
+                if (y1 - y2) ** 2 > 8 * noise / bn or px > 1e-8 + np.linalg.norm(x):
                     break
                 # `dx` is dangerously small, so `px` should be increased.
                 px *= 1.2
@@ -705,7 +705,7 @@ def optimize_iterator(
         noise += m2 * ((y3 - y6) ** 2 + 1e-64 * (abs(y3) + abs(y6)) - noise)
         # Update `px` depending on the noise and gradient.
         # `dx` is dangerously small, so `px` should be increased.
-        if (y1 - y2) ** 2 < 8 * noise / bn:
+        if (y1 - y2) ** 2 < 8 * noise / bn and px < 1e-8 + np.linalg.norm(x):
             px *= 1.2
         # `dx` can be safely decreased, so `px` should be decreased.
         elif px > 1e-8 * (1 + 0.25 * np.linalg.norm(x)):

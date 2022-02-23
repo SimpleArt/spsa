@@ -58,6 +58,8 @@ async def maximize(f: Callable[[np.ndarray], Awaitable[float]], /) -> Callable[[
         Maximize a function instead of minimizing it:
             x = spsa.aio.optimize(maximize(f), x)
     """
+    if not callable(f):
+        raise TypeError(f"f must be callable, got {f!r}")
     @wraps(f)
     async def wrapper(x: np.ndarray, /) -> float:
         return -(await f(x))

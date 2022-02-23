@@ -11,6 +11,7 @@ __all__ = ["maximize", "optimize", "optimize_iterator", "with_input_noise"]
 
 ArrayLike = Union[
     np.ndarray,
+    float,
     Sequence[float],
     Sequence[Sequence[float]],
     Sequence[Sequence[Sequence[float]]],
@@ -54,8 +55,8 @@ def _type_check(
     # Type-check.
     if not callable(f):
         raise TypeError(f"f must be callable, got {f!r}")
-    elif not isinstance(x, (np.ndarray, Sequence)):
-        raise TypeError(f"x must be either a numpy array or a sequence, got {x!r}")
+    elif not isinstance(x, (float, int, np.ndarray, Sequence)):
+        raise TypeError(f"x must be either a real number, numpy array, or sequence, got {x!r}")
     elif not isinstance(iterations, int):
         raise TypeError(f"iterations must be an integer, got {iterations!r}")
     elif not isinstance(adam, SupportsIndex):
@@ -105,6 +106,8 @@ def maximize(f: Callable[[np.ndarray], float], /) -> Callable[[np.ndarray], floa
         Maximize a function instead of minimizing it:
             x = spsa.optimize(maximize(f), x)
     """
+    if not callable(f):
+        raise TypeError(f"f must be callable, got {f!r}")
     @wraps(f)
     def wrapper(x: np.ndarray, /) -> float:
         return -f(x)
@@ -124,6 +127,7 @@ def with_input_noise(f: Callable[[np.ndarray], float], /, noise: float) -> Calla
             yield random_noise
             yield random_noise
     rng_iter: Optional[Iterator[float]] = None
+    @wraps(f)
     def wrapper(x: np.ndarray) -> float:
         nonlocal rng_iter
         if rng_iter is None:

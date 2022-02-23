@@ -4,13 +4,13 @@ import numpy as np
 
 from ._spsa import ArrayLike
 
-def uniform_iterator(a: float, b: float, /, *, repeat: bool = False) -> Iterator[float]:
+def uniform_iterator(a: float, b: float, /, *, repeat: bool = ...) -> Iterator[float]:
     ...
 
-def uniform_iterator(a: Union[float, ArrayLike], b: Union[float, ArrayLike], /, *, repeat: bool = False) -> Iterator[np.ndarray]:
+def uniform_iterator(a: ArrayLike, b: ArrayLike, /, *, repeat: bool = ...) -> Iterator[np.ndarray]:
     ...
 
-def uniform_iterator(a: Union[float, ArrayLike], b: Union[float, ArrayLike], /, *, repeat: bool = False) -> Union[Iterator[float], Iterator[np.ndarray]]:
+def uniform_iterator(a: ArrayLike, b: ArrayLike, /, *, repeat: bool = False) -> Union[Iterator[float], Iterator[np.ndarray]]:
     """
     Generates random points between a and b.
 
@@ -36,13 +36,13 @@ def uniform_iterator(a: Union[float, ArrayLike], b: Union[float, ArrayLike], /, 
             t += mean
             yield t
 
-def regression_iterator(a: float, b: float, /, *, repeat: bool = False) -> Iterator[float]:
+def regression_iterator(a: float, b: float, /, *, repeat: bool = ...) -> Iterator[float]:
     ...
 
-def regression_iterator(a: Union[float, ArrayLike], b: Union[float, ArrayLike], /, *, repeat: bool = False) -> Iterator[np.ndarray]:
+def regression_iterator(a: ArrayLike, b: ArrayLike, /, *, repeat: bool = ...) -> Iterator[np.ndarray]:
     ...
 
-def regression_iterator(a: Union[float, ArrayLike], b: Union[float, ArrayLike], /, *, repeat: bool = False) -> Union[Iterator[float], Iterator[np.ndarray]]:
+def regression_iterator(a: ArrayLike, b: ArrayLike, /, *, repeat: bool = True) -> Union[Iterator[float], Iterator[np.ndarray]]:
     """
     Generates random points between a and b, distributed towards the edges for regression.
 

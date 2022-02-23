@@ -7,7 +7,7 @@ from typing import Any, AsyncIterator, Awaitable, Callable, Iterator, Optional, 
 
 import numpy as np
 
-__all__ = ["maximize", "optimize", "optimize_iterator", "with_input_noise"]
+__all__ = ["ArrayLike", "OptimizerVariables", "_type_check", "immutable_view", "maximize", "optimize", "optimize_iterator", "with_input_noise"]
 
 ArrayLike = Union[
     np.ndarray,
@@ -87,7 +87,7 @@ def _type_check(
         if value >= 1:
             raise ValueError(f"{name} must not be greater than 1, got {value!r}")
     # Cast to numpy array.
-    x = np.asarray(x, dtype=float)
+    x = np.array(x, dtype=float)
     # Type-check.
     if x.size == 0:
         raise ValueError("cannot optimize with array of size 0")
@@ -96,6 +96,12 @@ def _type_check(
     elif np.isinf(x).any():
         raise ValueError(f"x must not contain infinity")
     return x
+
+def immutable_view(x: np.ndarray, /) -> np.ndarray:
+    """Returns a view of the input which cannot be modified."""
+    view = x[:]
+    view.setflags(write=False)
+    return view
 
 def maximize(f: Callable[[np.ndarray], float], /) -> Callable[[np.ndarray], float]:
     """
@@ -504,8 +510,8 @@ def optimize_iterator(
 
             NOTE: Most variables come with a corresponding beta variable which should be used.
 
-            NOTE: x, gradient, slow_gradient, and square_gradient are mutable numpy arrays.
-                  Modifying them may mess up the optimizer.
+            NOTE: x_min, x, gradient, slow_gradient, and square_gradient are immutable numpy arrays.
+                  Use x_min.copy(), x / beta_x, etc. instead of mutating them.
 
             x_min:
             y_min:
@@ -657,9 +663,9 @@ def optimize_iterator(
     improvement_fails = 0
     # Generate initial iteration.
     yield dict(
-        x_min=x_min,
+        x_min=immutable_view(x_min),
         y_min=y_min,
-        x=x_avg,
+        x=immutable_view(x_avg),
         y=y,
         lr=lr,
         beta_x=bx,
@@ -667,9 +673,9 @@ def optimize_iterator(
         beta1=b1,
         beta2=b2,
         noise=noise,
-        gradient=gx,
-        slow_gradient=slow_gx,
-        square_gradient=square_gx,
+        gradient=immutable_view(gx),
+        slow_gradient=immutable_view(slow_gx),
+        square_gradient=immutable_view(square_gx),
     )
     # Initial step size.
     dx = gx / b1
@@ -735,9 +741,9 @@ def optimize_iterator(
             consecutive_fails = 0
         # Generate the variables for the next iteration.
         yield dict(
-            x_min=x_min,
+            x_min=immutable_view(x_min),
             y_min=y_min,
-            x=x_avg,
+            x=immutable_view(x_avg),
             y=y,
             lr=lr,
             beta_x=bx,
@@ -745,9 +751,9 @@ def optimize_iterator(
             beta1=b1,
             beta2=b2,
             noise=noise,
-            gradient=gx,
-            slow_gradient=slow_gx,
-            square_gradient=square_gx,
+            gradient=immutable_view(gx),
+            slow_gradient=immutable_view(slow_gx),
+            square_gradient=immutable_view(square_gx),
         )
         if consecutive_fails < 128 * (improvement_fails + isqrt(x.size + 100)):
             continue

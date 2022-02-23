@@ -31,6 +31,7 @@ Example
 import asyncio
 from concurrent.futures import Executor, ProcessPoolExecutor
 import numpy as np
+
 import spsa
 
 def slow_f(data: bytes) -> float:
@@ -56,7 +57,7 @@ from typing import AsyncIterator, Awaitable, Callable, Optional, Sequence, Suppo
 
 import numpy as np
 
-from ._spsa import ArrayLike, OptimizerVariables, _type_check
+from ._spsa import ArrayLike, OptimizerVariables, _type_check, immutable_view
 
 __all__ = ["maximize", "optimize", "optimize_iterator", "with_input_noise"]
 
@@ -445,9 +446,9 @@ async def optimize_iterator(
     improvement_fails = 0
     # Generate initial iteration.
     yield dict(
-        x_min=x_min,
+        x_min=immutable_view(x_min),
         y_min=y_min,
-        x=x_avg,
+        x=immutable_view(x_avg),
         y=y,
         lr=lr,
         beta_x=bx,
@@ -455,9 +456,9 @@ async def optimize_iterator(
         beta1=b1,
         beta2=b2,
         noise=noise,
-        gradient=gx,
-        slow_gradient=slow_gx,
-        square_gradient=square_gx,
+        gradient=immutable_view(gx),
+        slow_gradient=immutable_view(slow_gx),
+        square_gradient=immutable_view(square_gx),
     )
     # Initial step size.
     dx = gx / b1
@@ -519,9 +520,9 @@ async def optimize_iterator(
             consecutive_fails = 0
         # Generate the variables for the next iteration.
         yield dict(
-            x_min=x_min,
+            x_min=immutable_view(x_min),
             y_min=y_min,
-            x=x_avg,
+            x=immutable_view(x_avg),
             y=y,
             lr=lr,
             beta_x=bx,
@@ -529,9 +530,9 @@ async def optimize_iterator(
             beta1=b1,
             beta2=b2,
             noise=noise,
-            gradient=gx,
-            slow_gradient=slow_gx,
-            square_gradient=square_gx,
+            gradient=immutable_view(gx),
+            slow_gradient=immutable_view(slow_gx),
+            square_gradient=immutable_view(square_gx),
         )
         await asyncio.sleep(0)
         if consecutive_fails < 128 * (improvement_fails + isqrt(x.size + 100)):

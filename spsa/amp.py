@@ -205,7 +205,7 @@ def _optimize_iterator(
             epsilon=epsilon,
         ):
             conn.send({
-                key: (np.array(value).tobytes() if isinstance(value, np.ndarray) else value)
+                key: (value.tobytes() if isinstance(value, np.ndarray) else value)
                 for key, value in variables.items()
             })
 
@@ -273,6 +273,6 @@ async def optimize_iterator(
         if child.closed:
             break
         yield {
-            key: (np.array(np.frombuffer(value), dtype=float) if isinstance(value, bytes) else value)
+            key: (np.frombuffer(value) if isinstance(value, bytes) else value)
             for key, value in parent.recv().items()
         }

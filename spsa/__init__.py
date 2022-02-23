@@ -107,8 +107,9 @@ Parallel Calls
 """
 from ._spsa import maximize, optimize, optimize_iterator, with_input_noise
 import spsa.aio as aio
+import spsa.amp as amp
 import spsa.random as random
 
-__all__ = ["aio", "maximize", "optimize", "optimize_iterator", "random", "with_input_noise"]
+__all__ = ["aio", "amp", "maximize", "optimize", "optimize_iterator", "random", "with_input_noise"]
 
 __version__ = "0.0.2"

@@ -1,10 +1,21 @@
 """
-Contains asynchronous variants of `spsa.optimize` and `spsa.optimize_iterator`.
+Asynchronous IO
+----------------
+
+Contains asynchronous variants of `spsa.optimize` and `spsa.optimize_iterator`
+for calling an asynchronous function concurrently each iteration.
+
+See also:
+    spsa.amp - Asynchronous Multiprocessing:
+        Runs the whole spsa algorithm in a separate process for synchronous functions.
+        Unlike spsa.aio, does not concurrently call functions each iteration. This is
+        more appropriate if the objective function cannot be ran concurrently or if
+        sharing numpy arrays between processes is too expensive.
 
 Example Uses
 -------------
 - Large numbers of iterations can be ran concurrently with other asynchronous code.
-- Slow function calls can be ran concurrently each iteration. May be combined with multiprocessing.
+- Slow function calls can be ran concurrently each iteration by combining it with multiprocessing.
 
 Parallelizing Calls with Multiprocessing
 -----------------------------------------

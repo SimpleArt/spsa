@@ -22,16 +22,17 @@ def uniform_iterator(a: ArrayLike, b: ArrayLike, /, *, repeat: bool = False) -> 
     mean = np.array((np.asarray(a) + np.asarray(b)) / 2)
     deviation = np.abs(np.asarray(b) - mean)
     del a, b
+    rng = np.random.default_rng()
     if repeat:
         while True:
-            t = np.random.uniform(-1, 1, mean.shape)
+            t = rng.uniform(-1, 1, mean.shape)
             t *= deviation
             t += mean
             yield t
             yield t
     else:
         while True:
-            t = np.random.uniform(-1, 1, mean.shape)
+            t = rng.uniform(-1, 1, mean.shape)
             t *= deviation
             t += mean
             yield t
@@ -54,9 +55,10 @@ def regression_iterator(a: ArrayLike, b: ArrayLike, /, *, repeat: bool = True) -
     mean = np.array((np.asarray(a) + np.asarray(b)) / 2)
     deviation = np.abs(np.asarray(b) - mean)
     del a, b
+    rng = np.random.default_rng()
     if repeat:
         while True:
-            t = np.random.uniform(-1, 1, mean.shape)
+            t = rng.uniform(-1, 1, mean.shape)
             t /= np.sqrt(np.abs(t))
             t *= deviation
             t += mean
@@ -64,7 +66,7 @@ def regression_iterator(a: ArrayLike, b: ArrayLike, /, *, repeat: bool = True) -
             yield t
     else:
         while True:
-            t = np.random.uniform(-1, 1, mean.shape)
+            t = rng.uniform(-1, 1, mean.shape)
             t /= np.sqrt(np.abs(t))
             t *= deviation
             t += mean

@@ -265,6 +265,8 @@ def minimize(
     """
     Implementation of the SPSA optimization algorithm for minimizing an objective function.
 
+    See `help(spsa)` for additional information.
+
     Defining Objective Functions
     -----------------------------
     Defining your objective function f appropriately can significantly change how well SPSA performs.
@@ -292,7 +294,7 @@ def minimize(
                 def f(x):
                     return ...
 
-                x = spsa.optimize(spsa.with_input_noise(f, noise=0.5), ...)
+                x = spsa.optimize(spsa.with_input_noise(f, shape, noise=0.5), ...)
 
             In this way, SPSA will explore neighboring inputs instead of getting stuck in a "basin".
             If the noise is sufficiently high, and there is a general trend in the direction of the

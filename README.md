@@ -18,23 +18,60 @@ py -m pip install spsa
 
 Usage
 ------
+Import:
+```python
+import spsa
+```
+
 Synchronous Functions:
 
 ```python
-x = spsa.optimize(f, x)
-x = spsa.optimize(spsa.maximize(f), x)  # For maximization.
+x = spsa.maximize(f, x)
+x = spsa.minimize(f, x)
 
-for variables in spsa.optimize_iterator(f, x):
+for variables in spsa.iterator.maximize(f, x):
+    print(variables)
+
+for variables in spsa.iterator.minimize(f, x):
     print(variables)
 ```
 
 Asynchronous Functions:
 
 ```python
-x = await spsa.aio.optimize(f, x)
-x = await spsa.aio.optimize(spsa.aio.maximize(f), x)  # For maximization.
+# spsa.aio - Asynchronous IO.# Performs function calls concurrently every iteration.
+# Useful for:
+#     IO-bound functions.
+#     Functions running in executors.
+#     Running `spsa` asynchronously with other code (non-blocking).
+# See `help(spsa.aio)` for more details.
 
-async for variables in spsa.aio.optimize(f, x):
+x = await spsa.aio.maximize(async_def_f, x)
+x = await spsa.aio.minimize(async_def_f, x)
+
+async for variables in spsa.aio.iterator.maximize(async_def_f, x):
+    print(variables)
+
+async for variables in spsa.aio.iterator.minimize(async_def_f, x):
+    print(variables)
+```
+
+Synchronous Functions with Multiprocessing:
+
+```python
+# spsa.amp - Asynchronous Multiprocessing.
+#     Running `spsa` asynchronously with other code (non-blocking).
+#     Running `spsa` in an executor for efficiently running multiple at a time.
+#     Not for improving a single `spsa` call.
+# See `help(spsa.amp)` for more details.
+
+x = await spsa.amp.maximize(def_f, x)
+x = await spsa.amp.minimize(def_f, x)
+
+async for variables in spsa.amp.iterator.maximize(def_f, x):
+    print(variables)
+
+async for variables in spsa.amp.iterator.minimize(def_f, x):
     print(variables)
 ```
 
@@ -45,13 +82,14 @@ Example
 import numpy as np
 import spsa
 
-# Sample function which has a minimum at 0.
+# Squared distance to 0.
 def sphere(x: np.ndarray) -> float:
     return np.linalg.norm(x) ** 2
 
 # Attempt to find the minimum.
-print(spsa.optimize(sphere, [1, 2, 3]))
-# Sample result:
+print(spsa.minimize(sphere, [1, 2, 3]))
+
+# Sample output:
 #     [-5.50452777e-21 -9.48070248e-21  9.78726993e-21]
 ```
 
@@ -71,8 +109,8 @@ A comparison of SPSA, Gradient Descent, and Bayesian Optimization are shown belo
 
 [1]: Normally requires only 2 calls, but linear search and noise-adjusting perturbation sizes require a few extra calls per iteration.
 
-[2]: Use `f(round(x))`, `px=0.5`, `px_decay=0`, and `px_tune=False`.
+[2]: Use `f(round(x))`.
 
 [3]: Use a different Gaussian process.
 
-[4]: See `spsa.aio`.
+[4]: See `spsa.aio` and `spsa.amp`.

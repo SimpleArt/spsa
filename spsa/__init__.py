@@ -10,17 +10,47 @@ like scipy just to optimize a function.
 Usage
 ------
 Synchronous Functions:
-    x = spsa.optimize(f, x)
-    x = spsa.optimize(spsa.maximize(f), x)  # For maximization.
+    x = spsa.maximize(f, x)
+    x = spsa.minimize(f, x)
 
-    for variables in spsa.optimize_iterator(f, x):
+    for variables in spsa.iterator.maximize(f, x):
+        print(variables)
+
+    for variables in spsa.iterator.minimize(f, x):
         print(variables)
 
 Asynchronous Functions:
-    x = await spsa.aio.optimize(f, x)
-    x = await spsa.aio.optimize(spsa.aio.maximize(f), x)  # For maximization.
+    # spsa.aio - Asynchronous IO.
+    # Useful for:
+    #     IO-bound functions.
+    #     Functions running in executors.
+    #     Running `spsa` asynchronously with other code (non-blocking).
+    # See `help(spsa.aio)` for more details.
 
-    async for variables in spsa.aio.optimize(f, x):
+    x = await spsa.aio.maximize(async_def_f, x)
+    x = await spsa.aio.minimize(async_def_f, x)
+
+    async for variables in spsa.aio.iterator.maximize(async_def_f, x):
+        print(variables)
+
+    async for variables in spsa.aio.iterator.minimize(async_def_f, x):
+        print(variables)
+
+Synchronous Functions with Multiprocessing:
+    # spsa.amp - Asynchronous Multiprocessing.
+    # Useful for:
+    #     Running `spsa` asynchronously with other code (non-blocking).
+    #     Running `spsa` in an executor for efficiently running multiple at a time.
+    #     Not for improving a single `spsa` call.
+    # See `help(spsa.amp)` for more details.
+
+    x = await spsa.amp.maximize(def_f, x)
+    x = await spsa.amp.minimize(def_f, x)
+
+    async for variables in spsa.amp.iterator.maximize(def_f, x):
+        print(variables)
+
+    async for variables in spsa.amp.iterator.minimize(def_f, x):
         print(variables)
 
 Example
@@ -28,13 +58,14 @@ Example
     import numpy as np
     import spsa
 
-    # Sample function which has a minimum at 0.
+    # Squared distance to 0.
     def sphere(x: np.ndarray) -> float:
         return np.linalg.norm(x) ** 2
 
     # Attempt to find the minimum.
-    print(spsa.optimize(sphere, [1, 2, 3]))
-    # Sample result:
+    print(spsa.minimize(sphere, [1, 2, 3]))
+
+    # Sample output:
     #     [-5.50452777e-21 -9.48070248e-21  9.78726993e-21]
 
 Pros & Cons
@@ -105,11 +136,13 @@ Parallel Calls
     Bayesian Optimization:
         Obvious places for parallel calls.
 """
-from ._spsa import maximize, optimize, optimize_iterator, with_input_noise
+from ._defaults import executor
+from ._spsa import maximize, minimize, with_input_noise
 import spsa.aio as aio
 import spsa.amp as amp
+import spsa.iterator as iterator
 import spsa.random as random
 
-__all__ = ["aio", "amp", "maximize", "optimize", "optimize_iterator", "random", "with_input_noise"]
+__all__ = ["aio", "amp", "executor", "iterator", "maximize", "minimize", "random", "with_input_noise"]
 
-__version__ = "0.0.3"
+__version__ = "0.1.0"

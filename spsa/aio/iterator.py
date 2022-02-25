@@ -1,130 +1,62 @@
 """
-Asynchronous IO
-----------------
+Contains a collection of iterator variants of `spsa.aio`.
 
-Contains asynchronous variants of `spsa.optimize` and `spsa.optimize_iterator`
-for calling an asynchronous function concurrently each iteration.
-
-See also:
-    spsa.amp - Asynchronous Multiprocessing:
-        Runs the whole spsa algorithm in a separate process for synchronous functions.
-        Unlike spsa.aio, does not concurrently call functions each iteration. This is
-        more appropriate if the objective function cannot be ran concurrently or if
-        sharing numpy arrays between processes is too expensive.
-
-Example Uses
--------------
-- Large numbers of iterations can be ran concurrently with other asynchronous code.
-- Slow function calls can be ran concurrently each iteration by combining it with multiprocessing.
-
-Parallelizing Calls with Multiprocessing
------------------------------------------
-Calls can be parallelized by using multiprocessing,
-but some care needs to be taken when using numpy arrays.
-The following provides a general template on how to apply multiprocessing.
-
-NOTE: Use this approach if the calculations are significantly slower than
-      the amount of time it takes to share the data to other processes.
-
-Example
---------
-import asyncio
-from concurrent.futures import Executor, ProcessPoolExecutor
-import numpy as np
-
-import spsa
-
-def slow_f(data: bytes) -> float:
-    '''Main calculations.'''
-    x = np.frombuffer(data)
-    ...  # Calculations.
-
-async def f(x: np.ndarray, executor: Executor = ProcessPoolExecutor()) -> float:
-    '''Run the calculations with an executor.'''
-    return await asyncio.get_running_loop().run_in_executor(executor, slow_f, x.tobytes())
-
-# Initial x.
-x = ...
-# Solution.
-x = spsa.aio.optimize(f, x)
+Each iteration, a `dict` of variables is generated,
+allowing the iterations to be logged or custom
+termination algorithms to be used.
 """
 import asyncio
 import operator
-import random
-
-from math import isinf, isnan, isqrt, sqrt
-from typing import AsyncIterator, Awaitable, Callable, Optional, Sequence, SupportsFloat, SupportsIndex, Tuple
+from math import isqrt, sqrt
+from typing import AsyncIterator, Awaitable, Callable, Optional
 
 import numpy as np
 
-from ._spsa import ArrayLike, OptimizerVariables, _type_check, immutable_view
+import spsa._defaults as DEFAULTS
+from spsa._utils import ArrayLike, OptimizerVariables, immutable_view, type_check
 
-__all__ = ["maximize", "optimize", "optimize_iterator", "with_input_noise"]
+__all__ = ["maximize", "minimize"]
 
-async def maximize(f: Callable[[np.ndarray], Awaitable[float]], /) -> Callable[[np.ndarray], Awaitable[float]]:
-    """
-    Turns the function into a maximization function.
-
-    Usage
-    ------
-        Maximize a function instead of minimizing it:
-            x = spsa.aio.optimize(maximize(f), x)
-    """
-    if not callable(f):
-        raise TypeError(f"f must be callable, got {f!r}")
-    @wraps(f)
-    async def wrapper(x: np.ndarray, /) -> float:
-        return -(await f(x))
-    return wrapper
-
-def with_input_noise(f: Callable[[np.ndarray], Awaitable[float]], /, noise: float) -> Callable[[np.ndarray], Awaitable[float]]:
-    """Adds noise to the input before calling."""
-    if not callable(f):
-        raise TypeError(f"f must be callable, got {f!r}")
-    elif not isinstance(noise, SupportsFloat):
-        raise TypeError(f"noise must be real, got {noise!r}")
-    noise = float(noise)
-    rng = np.random.default_rng()
-    def rng_iterator(shape: Tuple[int, ...]) -> Iterator[np.ndarray]:
-        while True:
-            random_noise = rng.uniform(-noise, noise, shape)
-            yield random_noise
-            yield random_noise
-    rng_iter: Optional[Iterator[float]] = None
-    async def wrapper(x: np.ndarray) -> float:
-        nonlocal rng_iter
-        if rng_iter is None:
-            rng_iter = rng_iterator(x.shape)
-        return (await f(x + dx) + await f(x - dx)) / 2
-    return wrapper
-
-async def optimize(
+async def maximize(
     f: Callable[[np.ndarray], Awaitable[float]],
     x: ArrayLike,
     /,
     *,
-    adam: bool = True,
-    iterations: int = 10_000,
-    lr: Optional[float] = None,
-    lr_decay: float = 1e-3,
-    lr_power: float = 0.5,
-    px: Optional[float] = None,
-    px_decay: float = 1e-2,
-    px_power: float = 0.161,
-    momentum: float = 0.97,
-    beta: float = 0.999,
-    epsilon: float = 1e-7,
-) -> np.ndarray:
+    adam: bool = DEFAULTS.adam,
+    iterations: int = DEFAULTS.iterations,
+    lr: Optional[float] = DEFAULTS.lr,
+    lr_decay: float = DEFAULTS.lr_decay,
+    lr_power: float = DEFAULTS.lr_power,
+    px: Optional[float] = DEFAULTS.px,
+    px_decay: float = DEFAULTS.px_decay,
+    px_power: float = DEFAULTS.px_power,
+    momentum: float = DEFAULTS.momentum,
+    beta: float = DEFAULTS.beta,
+    epsilon: float = DEFAULTS.epsilon,
+) -> AsyncIterator[OptimizerVariables]:
     """
-    An asynchronous optimizer accepting asynchronous functions.
+    An asynchronous generator accepting asynchronous functions.
     Allows function calls to be done concurrently each iteration.
 
-    See `help(spsa.optimizer)` and `help(spsa.aio)` for more details.
+    See `help(spsa.aio.iterator.minimize)` for more details.
     """
     try:
-        x = _type_check(f, x, adam, iterations, lr, lr_decay, lr_power, px, px_decay, px_power, momentum, beta, epsilon)
+        x = type_check(f, x, adam, iterations, lr, lr_decay, lr_power, px, px_decay, px_power, momentum, beta, epsilon)
     except (TypeError, ValueError) as e:
         raise e.with_traceback(None)
+    adam = bool(operator.index(adam))
+    iterations = operator.index(iterations)
+    if lr is not None:
+        lr = float(lr)
+    lr_decay = float(lr_decay)
+    lr_power = float(lr_power)
+    if px is not None:
+        px = float(px)
+    px_decay = float(px_decay)
+    px_power = float(px_power)
+    momentum = float(momentum)
+    beta = float(beta)
+    epsilon = float(epsilon)
     rng = np.random.default_rng()
     #---------------------------------------------------------#
     # General momentum algorithm:                             #
@@ -140,7 +72,7 @@ async def optimize(
     bn = 0.0
     y = 0.0
     noise = 0.0
-    for _ in range(isqrt(isqrt(x.size + 100) + 100)):
+    for _ in range(isqrt(x.size + 100)):
         y1, y2 = await asyncio.gather(f(x), f(x))
         bn += m2 * (1 - bn)
         y += 0.5 * m2 * ((y1 - y) + (y2 - y))
@@ -150,7 +82,7 @@ async def optimize(
     # Estimate the perturbation size that should be used.
     if px is None:
         px = 3e-4 * (1 + 0.25 * np.linalg.norm(x))
-        for _ in range(isqrt(isqrt(x.size + 100) + 100)):
+        for _ in range(isqrt(x.size + 100)):
             # Increase `px` until the change in f(x) is signficiantly larger than the noise.
             while True:
                 # Update the noise.
@@ -195,7 +127,7 @@ async def optimize(
     gx = np.zeros_like(x)
     slow_gx = np.zeros_like(x)
     square_gx = np.zeros_like(x)
-    for _ in range(isqrt(isqrt(x.size + 100) + 100)):
+    for _ in range(isqrt(x.size + 100)):
         # Compute df/dx in random directions.
         dx = rng.choice((-1.0, 1.0), x.shape)
         dx *= px
@@ -218,7 +150,7 @@ async def optimize(
         for _ in range(3):
             while True:
                 y1, y2 = await asyncio.gather(f(x), f(x - lr * dx))
-                if y1 < y2:
+                if y1 > y2:
                     break
                 lr *= 1.4
                 await asyncio.sleep(0)
@@ -227,11 +159,27 @@ async def optimize(
     bx = mx
     x_avg = mx * x
     # Track the best (x, y).
-    y_min = y / bn
-    x_min = x.copy()
+    y_best = y / bn
+    x_best = x.copy()
     # Track how many times the solution fails to improve.
     consecutive_fails = 0
     improvement_fails = 0
+    # Generate initial iteration.
+    yield dict(
+        x_best=immutable_view(x_best),
+        y_best=y_best,
+        x=immutable_view(x_avg),
+        y=y,
+        lr=lr,
+        beta_x=bx,
+        beta_noise=bn,
+        beta1=b1,
+        beta2=b2,
+        noise=noise,
+        gradient=immutable_view(gx),
+        slow_gradient=immutable_view(slow_gx),
+        square_gradient=immutable_view(square_gx),
+    )
     # Initial step size.
     dx = gx / b1
     if adam:
@@ -239,7 +187,7 @@ async def optimize(
     # Run the number of iterations.
     for i in range(iterations):
         # Estimate the next point.
-        x_next = x - lr * dx
+        x_next = x + lr * dx
         # Compute df/dx in at the next point.
         dx = rng.choice((-1.0, 1.0), x.shape)
         dx *= px / (1 + px_decay * i) ** px_power
@@ -258,7 +206,7 @@ async def optimize(
         if adam:
             dx /= np.sqrt(square_gx / b2 + epsilon)
         # Sample points concurrently.
-        y3, y4, y5, y6 = await asyncio.gather(f(x), f(x - lr * m1 * dx), f(x - lr / m1 * dx), f(x))
+        y3, y4, y5, y6 = await asyncio.gather(f(x), f(x + lr * m1 * dx), f(x + lr / m1 * dx), f(x))
         # Estimate the noise in f.
         bn += m2 * (1 - bn)
         y += m2 * (y3 - y)
@@ -272,35 +220,51 @@ async def optimize(
             px /= 1.1
         # Perform line search.
         # Adjust the learning rate towards learning rates which give good results.
-        if y3 - 0.25 * sqrt(noise / bn) < min(y4, y5):
+        if y3 + 0.25 * sqrt(noise / bn) > max(y4, y5):
             lr /= 1.3
-        if y4 - 0.25 * sqrt(noise / bn) < min(y3, y5):
+        if y4 + 0.25 * sqrt(noise / bn) > max(y3, y5):
             lr *= 1.3 / 1.4
-        if y5 - 0.25 * sqrt(noise / bn) < min(y3, y4):
+        if y5 + 0.25 * sqrt(noise / bn) > max(y3, y4):
             lr *= 1.4
         # Set a minimum learning rate.
         lr = max(lr, epsilon / (1 + 0.01 * i) ** 0.5 * (1 + 0.25 * np.linalg.norm(x)))
         # Update the solution.
-        x -= lr * dx
+        x += lr * dx
         bx += mx / (1 + 0.01 * i) ** 0.303 * (1 - bx)
         x_avg += mx / (1 + 0.01 * i) ** 0.303 * (x - x_avg)
         consecutive_fails += 1
         # Track the best (x, y).
-        if y / bn < y_min:
-            y_min = y / bn
-            x_min = x_avg / bx
+        if y / bn > y_best:
+            y_best = y / bn
+            x_best = x_avg / bx
             consecutive_fails = 0
+        # Generate the variables for the next iteration.
+        yield dict(
+            x_best=immutable_view(x_best),
+            y_best=y_best,
+            x=immutable_view(x_avg),
+            y=y,
+            lr=lr,
+            beta_x=bx,
+            beta_noise=bn,
+            beta1=b1,
+            beta2=b2,
+            noise=noise,
+            gradient=immutable_view(gx),
+            slow_gradient=immutable_view(slow_gx),
+            square_gradient=immutable_view(square_gx),
+        )
         await asyncio.sleep(0)
         if consecutive_fails < 128 * (improvement_fails + isqrt(x.size + 100)):
             continue
         # Reset variables if diverging.
         consecutive_fails = 0
         improvement_fails += 1
-        x = x_min
+        x = x_best
         bx = mx * (1 - mx)
         x_avg = bx * x
         noise *= m2 * (1 - m2) / bn
-        y = m2 * (1 - m2) * y_min
+        y = m2 * (1 - m2) * y_best
         bn = m2 * (1 - m2)
         b1 = m1 * (1 - m1)
         gx = b1 / b2 * slow_gx
@@ -308,35 +272,47 @@ async def optimize(
         square_gx *= m2 * (1 - m2) / b2
         b2 = m2 * (1 - m2)
         lr /= 16 * improvement_fails
-    return x_min if y_min - 0.25 * sqrt(noise / bn) < min(*(await asyncio.gather(f(x), f(x)))) else x
 
-async def optimize_iterator(
+async def minimize(
     f: Callable[[np.ndarray], Awaitable[float]],
     x: ArrayLike,
     /,
     *,
-    adam: bool = True,
-    iterations: int = 10_000,
-    lr: Optional[float] = None,
-    lr_decay: float = 1e-3,
-    lr_power: float = 0.5,
-    px: Optional[float] = None,
-    px_decay: float = 1e-2,
-    px_power: float = 0.161,
-    momentum: float = 0.97,
-    beta: float = 0.999,
-    epsilon: float = 1e-7,
+    adam: bool = DEFAULTS.adam,
+    iterations: int = DEFAULTS.iterations,
+    lr: Optional[float] = DEFAULTS.lr,
+    lr_decay: float = DEFAULTS.lr_decay,
+    lr_power: float = DEFAULTS.lr_power,
+    px: Optional[float] = DEFAULTS.px,
+    px_decay: float = DEFAULTS.px_decay,
+    px_power: float = DEFAULTS.px_power,
+    momentum: float = DEFAULTS.momentum,
+    beta: float = DEFAULTS.beta,
+    epsilon: float = DEFAULTS.epsilon,
 ) -> AsyncIterator[OptimizerVariables]:
     """
     An asynchronous generator accepting asynchronous functions.
     Allows function calls to be done concurrently each iteration.
 
-    See `help(spsa.optimizer_iterator)` and `help(spsa.aio)` for more details.
+    See `help(spsa.iterator.minimize)` and `help(spsa.aio.minimize)` for more details.
     """
     try:
-        x = _type_check(f, x, adam, iterations, lr, lr_decay, lr_power, px, px_decay, px_power, momentum, beta, epsilon)
+        x = type_check(f, x, adam, iterations, lr, lr_decay, lr_power, px, px_decay, px_power, momentum, beta, epsilon)
     except (TypeError, ValueError) as e:
         raise e.with_traceback(None)
+    adam = bool(operator.index(adam))
+    iterations = operator.index(iterations)
+    if lr is not None:
+        lr = float(lr)
+    lr_decay = float(lr_decay)
+    lr_power = float(lr_power)
+    if px is not None:
+        px = float(px)
+    px_decay = float(px_decay)
+    px_power = float(px_power)
+    momentum = float(momentum)
+    beta = float(beta)
+    epsilon = float(epsilon)
     rng = np.random.default_rng()
     #---------------------------------------------------------#
     # General momentum algorithm:                             #
@@ -439,15 +415,15 @@ async def optimize_iterator(
     bx = mx
     x_avg = mx * x
     # Track the best (x, y).
-    y_min = y / bn
-    x_min = x.copy()
+    y_best = y / bn
+    x_best = x.copy()
     # Track how many times the solution fails to improve.
     consecutive_fails = 0
     improvement_fails = 0
     # Generate initial iteration.
     yield dict(
-        x_min=immutable_view(x_min),
-        y_min=y_min,
+        x_best=immutable_view(x_best),
+        y_best=y_best,
         x=immutable_view(x_avg),
         y=y,
         lr=lr,
@@ -514,14 +490,14 @@ async def optimize_iterator(
         x_avg += mx / (1 + 0.01 * i) ** 0.303 * (x - x_avg)
         consecutive_fails += 1
         # Track the best (x, y).
-        if y / bn < y_min:
-            y_min = y / bn
-            x_min = x_avg / bx
+        if y / bn < y_best:
+            y_best = y / bn
+            x_best = x_avg / bx
             consecutive_fails = 0
         # Generate the variables for the next iteration.
         yield dict(
-            x_min=immutable_view(x_min),
-            y_min=y_min,
+            x_best=immutable_view(x_best),
+            y_best=y_best,
             x=immutable_view(x_avg),
             y=y,
             lr=lr,
@@ -540,11 +516,11 @@ async def optimize_iterator(
         # Reset variables if diverging.
         consecutive_fails = 0
         improvement_fails += 1
-        x = x_min
+        x = x_best
         bx = mx * (1 - mx)
         x_avg = bx * x
         noise *= m2 * (1 - m2) / bn
-        y = m2 * (1 - m2) * y_min
+        y = m2 * (1 - m2) * y_best
         bn = m2 * (1 - m2)
         b1 = m1 * (1 - m1)
         gx = b1 / b2 * slow_gx

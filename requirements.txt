@@ -1,2 +1,2 @@
-python >= 3.5.2
+python >= 3.5
 numpy >= 1.17

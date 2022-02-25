@@ -1,13 +1,13 @@
-import setuptools
+from setuptools import setup
 
 with open("README.md", "r", encoding="utf-8") as readme_file:
     long_description = readme_file.read()
 
-setuptools.setup(
+setup(
     name="spsa",
-    version="0.1.1",
+    version="0.1.2",
     description="The purpose of this package is to provide multivariable optimizers using SPSA.",
-    packages=["spsa"],
+    packages=["spsa", "spsa.aio", "spsa.amp", "spsa.random"],
     python_requires=">=3.5",
     url="https://github.com/SimpleArt/spsa",
     author="Jack Nguyen",

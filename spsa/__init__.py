@@ -148,4 +148,4 @@ import spsa.random as random
 
 __all__ = ["aio", "amp", "executor", "iterator", "maximize", "minimize", "random", "with_input_noise"]
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"

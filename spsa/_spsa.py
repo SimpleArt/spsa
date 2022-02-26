@@ -544,8 +544,8 @@ def minimize(
             dx /= np.sqrt(square_gx / b2 + epsilon)
         # Sample points.
         y3 = f(x)
-        y4 = f(x - lr * m1 * dx)
-        y5 = f(x - lr / m1 * dx)
+        y4 = f(x - lr * 0.5 * dx)
+        y5 = f(x - lr / sqrt(m1) * dx)
         y6 = f(x)
         # Estimate the noise in f.
         bn += m2 * (1 - bn)

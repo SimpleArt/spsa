@@ -96,6 +96,6 @@ def type_check(
 
 def immutable_view(x: np.ndarray, /) -> np.ndarray:
     """Returns a view of the input which cannot be modified."""
-    view = x[:]
+    view = np.asarray(x)[...]
     view.setflags(write=False)
     return view

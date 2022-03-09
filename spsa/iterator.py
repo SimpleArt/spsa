@@ -537,19 +537,19 @@ def minimize(
         slow_gradient += square_beta * (df_dx - slow_gradient)
         square_gradient += square_beta * ((slow_gradient / square_bias) ** 2 - square_gradient)
         # Compute the step size.
-        dx = momentum_gradient / momentum_bias
+        dx = momentum_gradient / momentum_bias * lr
         if adam:
             dx = np.moveaxis(dx, -1, 0)
             dx /= np.sqrt(square_gradient / square_bias + epsilon)
             dx = np.moveaxis(dx, 0, -1)
         # Update a random momentum.
-        j = random.randrange(len(lr))
+        j = random.randrange(dx.shape[-1])
         # Sample points.
         y0 = f(x)
         dx[..., j] /= 2
-        y1 = f(x - (lr * dx).sum(axis=-1))
+        y1 = f(x - dx.sum(axis=-1))
         dx[..., j] *= 2 / sqrt(momentum_beta[-1])
-        y2 = f(x - (lr * dx).sum(axis=-1))
+        y2 = f(x - dx.sum(axis=-1))
         dx[..., j] *= sqrt(momentum_beta[-1])
         y3 = f(x)
         # Estimate the noise in f.

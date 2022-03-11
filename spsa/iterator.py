@@ -537,7 +537,7 @@ def minimize(
         slow_gradient += square_beta * (df_dx - slow_gradient)
         square_gradient += square_beta * ((slow_gradient / square_bias) ** 2 - square_gradient)
         # Compute the step size.
-        dx = momentum_gradient / momentum_bias * lr
+        dx = momentum_gradient * ((1 + lr_decay * i) ** -lr_power * lr / momentum_bias)
         if adam:
             dx = np.moveaxis(dx, -1, 0)
             dx /= np.sqrt(square_gradient / square_bias + epsilon)

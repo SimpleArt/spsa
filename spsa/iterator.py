@@ -543,7 +543,7 @@ def minimize(
             dx /= np.sqrt(square_gradient / square_bias + epsilon)
             dx = np.moveaxis(dx, 0, -1)
         # Update a random momentum.
-        j = random.randrange(dx.shape[-1])
+        j = random.randrange(lr.size)
         # Sample points.
         y0 = f(x)
         dx[..., j] /= 2
@@ -560,13 +560,13 @@ def minimize(
         # Perform line search.
         # Adjust the learning rate towards learning rates which give good results.
         if y0 - 0.25 * sqrt(noise / noise_bias) < min(y1, y2):
-            lr[..., j] /= 1.3
+            lr[j] /= 1.3
         if y1 - 0.25 * sqrt(noise / noise_bias) < min(y0, y2):
-            lr[..., j] *= 1.3 / 1.4
+            lr[j] *= 1.3 / 1.4
         if y2 - 0.25 * sqrt(noise / noise_bias) < min(y0, y1):
-            lr[..., j] *= 1.4
+            lr[j] *= 1.4
         # Set a minimum learning rate.
-        lr[..., j] = max(lr[..., j], (1 + 0.01 * i) ** -0.5 * (1 + 0.25 * np.linalg.norm(x)) * epsilon)
+        lr[j] = max(lr[j], (1 + 0.01 * i) ** -0.5 * (1 + 0.25 * np.linalg.norm(x)) * epsilon)
         # Update the solution.
         dx = momentum_gradient @ ((1 + lr_decay * i) ** -lr_power * lr / momentum_bias)
         if adam:

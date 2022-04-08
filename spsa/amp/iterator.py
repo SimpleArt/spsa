@@ -16,7 +16,7 @@ import operator
 from concurrent.futures import Executor
 from multiprocessing import Pipe
 from multiprocessing.connection import Connection
-from typing import AsyncIterator, Callable, Iterator, Optional
+from typing import AsyncIterator, Callable, Iterator, Optional, Type, Union
 
 import numpy as np
 
@@ -34,10 +34,10 @@ def _optimize(
     conn: Connection,
     adam: bool,
     iterations: int,
-    lr: Optional[float],
+    lr: float,
     lr_decay: float,
     lr_power: float,
-    px: Optional[float],
+    px: Union[float, Type[int]],
     px_decay: float,
     px_power: float,
     momentum: float,
@@ -79,7 +79,7 @@ async def maximize(
     lr: Optional[float] = DEFAULTS.lr,
     lr_decay: float = DEFAULTS.lr_decay,
     lr_power: float = DEFAULTS.lr_power,
-    px: Optional[float] = DEFAULTS.px,
+    px: Union[float, Type[int]] = DEFAULTS.px,
     px_decay: float = DEFAULTS.px_decay,
     px_power: float = DEFAULTS.px_power,
     momentum: float = DEFAULTS.momentum,
@@ -106,10 +106,10 @@ async def maximize(
         child,
         bool(operator.index(adam)),
         operator.index(iterations),
-        None if lr is None else float(lr),
+        float(lr) if lr is not None else None,
         float(lr_decay),
         float(lr_power),
-        None if px is None else float(px),
+        float(px) if px is not int else px,
         float(px_decay),
         float(px_power),
         float(momentum),
@@ -152,7 +152,7 @@ async def minimize(
     lr: Optional[float] = DEFAULTS.lr,
     lr_decay: float = DEFAULTS.lr_decay,
     lr_power: float = DEFAULTS.lr_power,
-    px: Optional[float] = DEFAULTS.px,
+    px: Union[float, Type[int]] = DEFAULTS.px,
     px_decay: float = DEFAULTS.px_decay,
     px_power: float = DEFAULTS.px_power,
     momentum: float = DEFAULTS.momentum,
@@ -194,10 +194,10 @@ async def minimize(
         child,
         bool(operator.index(adam)),
         operator.index(iterations),
-        None if lr is None else float(lr),
+        float(lr) if lr is not None else None,
         float(lr_decay),
         float(lr_power),
-        None if px is None else float(px),
+        float(px) if px is not int else px,
         float(px_decay),
         float(px_power),
         float(momentum),

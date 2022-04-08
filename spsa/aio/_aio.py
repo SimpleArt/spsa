@@ -1,7 +1,7 @@
 import asyncio
 import operator
 from math import isqrt, sqrt
-from typing import Awaitable, Callable, Iterator, Optional, SupportsFloat, Tuple
+from typing import Awaitable, Callable, Iterator, Optional, SupportsFloat, Tuple, Type, Union
 
 import numpy as np
 
@@ -55,7 +55,7 @@ async def maximize(
     lr: Optional[float] = DEFAULTS.lr,
     lr_decay: float = DEFAULTS.lr_decay,
     lr_power: float = DEFAULTS.lr_power,
-    px: Optional[float] = DEFAULTS.px,
+    px: Union[float, Type[int]] = DEFAULTS.px,
     px_decay: float = DEFAULTS.px_decay,
     px_power: float = DEFAULTS.px_power,
     momentum: float = DEFAULTS.momentum,
@@ -78,7 +78,9 @@ async def maximize(
         lr = float(lr)
     lr_decay = float(lr_decay)
     lr_power = float(lr_power)
-    if px is not None:
+    if px is int:
+        x_temp = np.empty_like(x, dtype=int)
+    elif px is not None:
         px = float(px)
     px_decay = float(px_decay)
     px_power = float(px_power)
@@ -106,60 +108,21 @@ async def maximize(
         y += 0.5 * m2 * ((y1 - y) + (y2 - y))
         noise += m2 * ((y1 - y2) ** 2 - noise)
         await asyncio.sleep(0)
-    temp = await f(x)
-    # Estimate the perturbation size that should be used.
-    if px is None:
-        px = 3e-4 * (1 + 0.25 * np.linalg.norm(x))
-        for _ in range(isqrt(isqrt(x.size + 100) + 100)):
-            # Increase `px` until the change in f(x) is signficiantly larger than the noise.
-            while True:
-                # Update the noise.
-                y1, y2 = await asyncio.gather(f(x), f(x))
-                bn += m2 * (1 - bn)
-                y += 0.5 * m2 * ((y1 - y) + (y2 - y))
-                noise += m2 * ((y1 - y2) ** 2 + 1e-64 * (abs(y1) + abs(y2)) - noise)
-                # Compute a change in f(x) in a random direction.
-                dx = rng.choice((-1.0, 1.0), x.shape)
-                dx *= px
-                # Stop if sufficiently accurate.
-                y1, y2 = await asyncio.gather(f(x + dx), f(x - dx))
-                if (y1 - y2) ** 2 > 8 * noise / bn or px > 1e-8 + np.linalg.norm(x):
-                    break
-                # `dx` is dangerously small, so `px` should be increased.
-                px *= 1.2
-                await asyncio.sleep(0)
-            # Attempt to decrease `px` to improve the gradient estimate unless the noise is too much.
-            for _ in range(3):
-                # Update the noise.
-                y1, y2 = await asyncio.gather(f(x), f(x))
-                bn += m2 * (1 - bn)
-                y += 0.5 * m2 * ((y1 - y) + (y2 - y))
-                noise += m2 * ((y1 - y2) ** 2 + 1e-64 * (abs(y1) + abs(y2)) - noise)
-                # Compute a change in f(x) in a random direction.
-                dx = rng.choice((-1.0, 1.0), x.shape)
-                dx *= px
-                # Stop if too much noise.
-                y1, y2 = await asyncio.gather(f(x + dx), f(x - dx))
-                if (y1 - y2) ** 2 < 8 * noise / bn:
-                    break
-                # `dx` can be safely decreased, so `px` should be decreased.
-                px /= 1.1
-                await asyncio.sleep(0)
-            # Set a minimum perturbation.
-            px = max(px, epsilon * (1 + 0.25 * np.linalg.norm(x)))
-            await asyncio.sleep(0)
-    temp = await f(x)
     # Estimate the gradient and its square.
     b1 = 0.0
     b2 = 0.0
     gx = np.zeros_like(x)
     slow_gx = np.zeros_like(x)
     square_gx = np.zeros_like(x)
-    for _ in range(isqrt(isqrt(x.size + 100) + 100)):
+    for i in range(isqrt(isqrt(x.size + 100) + 100)):
         # Compute df/dx in random directions.
-        dx = rng.choice((-1.0, 1.0), x.shape)
-        dx *= px
-        y1, y2 = await asyncio.gather(f(x + dx), f(x - dx))
+        if px is int:
+            dx = rng.choice((-0.5, 0.5), x.shape)
+            y1, y2 = await asyncio.gather(f(x + dx, casting="unsafe", out=x_temp1), f(np.rint(x - dx, casting="unsafe", out=x_temp2)))
+        else:
+            dx = rng.choice((-1.0, 1.0), x.shape) / (1 + i)
+            dx *= px
+            y1, y2 = await asyncio.gather(f(x + dx), f(x - dx))
         df_dx = (y1 - y2) * 0.5 / dx
         # Update the gradients.
         b1 += m1 * (1 - b1)
@@ -201,10 +164,18 @@ async def maximize(
         # Estimate the next point.
         x_next = x + lr * dx
         # Compute df/dx in at the next point.
-        dx = rng.choice((-1.0, 1.0), x.shape)
-        dx *= px / (1 + px_decay * i) ** px_power
-        dx /= np.sqrt(square_gx / b2 + epsilon)
-        y1, y2 = await asyncio.gather(f(x_next + dx), f(x_next - dx))
+        if px is int:
+            dx = rng.choice((-0.5, 0.5), x.shape)
+            y1, y2 = await asyncio.gather(
+                f(np.rint(x_next + dx, casting="unsafe", out=x_temp1)),
+                f(np.rint(x_next - dx, casting="unsafe", out=x_temp2)),
+            )
+        else:
+            dx = (lr / m1 * px / (1 + px_decay * i) ** px_power) * np.linalg.norm(dx)
+            if adam:
+                dx /= np.sqrt(square_gx / b2 + epsilon)
+            dx *= rng.choice((-1.0, 1.0), x.shape)
+            y1, y2 = await asyncio.gather(f(x_next + dx), f(x_next - dx))
         df = (y1 - y2) / 2
         df_dx = dx * (df * sqrt(x.size) / np.linalg.norm(dx) ** 2)
         # Update the gradients.
@@ -223,13 +194,6 @@ async def maximize(
         bn += m2 * (1 - bn)
         y += m2 * (y3 - y)
         noise += m2 * ((y3 - y6) ** 2 + 1e-64 * (abs(y3) + abs(y6)) - noise)
-        # Update `px` depending on the noise and gradient.
-        # `dx` is dangerously small, so `px` should be increased.
-        if (y1 - y2) ** 2 < 8 * noise / bn and px < 1e-8 + np.linalg.norm(x):
-            px *= 1.2
-        # `dx` can be safely decreased, so `px` should be decreased.
-        elif px > 1e-8 * (1 + 0.25 * np.linalg.norm(x)):
-            px /= 1.1
         # Perform line search.
         # Adjust the learning rate towards learning rates which give good results.
         if y3 + 0.25 * sqrt(noise / bn) > max(y4, y5):
@@ -268,6 +232,9 @@ async def maximize(
         square_gx *= m2 * (1 - m2) / b2
         b2 = m2 * (1 - m2)
         lr /= 16 * improvement_fails
+    if px is int:
+        x_best = np.rint(x_best, casting="unsafe", out=x_temp1)
+        x = np.rint(x, casting="unsafe", out=x_temp2)
     return x_best if y_best + 0.25 * sqrt(noise / bn) > max(*(await asyncio.gather(f(x), f(x)))) else x
 
 async def minimize(
@@ -280,7 +247,7 @@ async def minimize(
     lr: Optional[float] = DEFAULTS.lr,
     lr_decay: float = DEFAULTS.lr_decay,
     lr_power: float = DEFAULTS.lr_power,
-    px: Optional[float] = DEFAULTS.px,
+    px: Union[float, Type[int]] = DEFAULTS.px,
     px_decay: float = DEFAULTS.px_decay,
     px_power: float = DEFAULTS.px_power,
     momentum: float = DEFAULTS.momentum,
@@ -303,7 +270,9 @@ async def minimize(
         lr = float(lr)
     lr_decay = float(lr_decay)
     lr_power = float(lr_power)
-    if px is not None:
+    if px is int:
+        x_temp = np.empty_like(x, dtype=int)
+    elif px is not None:
         px = float(px)
     px_decay = float(px_decay)
     px_power = float(px_power)
@@ -331,60 +300,21 @@ async def minimize(
         y += 0.5 * m2 * ((y1 - y) + (y2 - y))
         noise += m2 * ((y1 - y2) ** 2 - noise)
         await asyncio.sleep(0)
-    temp = await f(x)
-    # Estimate the perturbation size that should be used.
-    if px is None:
-        px = 3e-4 * (1 + 0.25 * np.linalg.norm(x))
-        for _ in range(isqrt(isqrt(x.size + 100) + 100)):
-            # Increase `px` until the change in f(x) is signficiantly larger than the noise.
-            while True:
-                # Update the noise.
-                y1, y2 = await asyncio.gather(f(x), f(x))
-                bn += m2 * (1 - bn)
-                y += 0.5 * m2 * ((y1 - y) + (y2 - y))
-                noise += m2 * ((y1 - y2) ** 2 + 1e-64 * (abs(y1) + abs(y2)) - noise)
-                # Compute a change in f(x) in a random direction.
-                dx = rng.choice((-1.0, 1.0), x.shape)
-                dx *= px
-                # Stop if sufficiently accurate.
-                y1, y2 = await asyncio.gather(f(x + dx), f(x - dx))
-                if (y1 - y2) ** 2 > 8 * noise / bn or px > 1e-8 + np.linalg.norm(x):
-                    break
-                # `dx` is dangerously small, so `px` should be increased.
-                px *= 1.2
-                await asyncio.sleep(0)
-            # Attempt to decrease `px` to improve the gradient estimate unless the noise is too much.
-            for _ in range(3):
-                # Update the noise.
-                y1, y2 = await asyncio.gather(f(x), f(x))
-                bn += m2 * (1 - bn)
-                y += 0.5 * m2 * ((y1 - y) + (y2 - y))
-                noise += m2 * ((y1 - y2) ** 2 + 1e-64 * (abs(y1) + abs(y2)) - noise)
-                # Compute a change in f(x) in a random direction.
-                dx = rng.choice((-1.0, 1.0), x.shape)
-                dx *= px
-                # Stop if too much noise.
-                y1, y2 = await asyncio.gather(f(x + dx), f(x - dx))
-                if (y1 - y2) ** 2 < 8 * noise / bn:
-                    break
-                # `dx` can be safely decreased, so `px` should be decreased.
-                px /= 1.1
-                await asyncio.sleep(0)
-            # Set a minimum perturbation.
-            px = max(px, epsilon * (1 + 0.25 * np.linalg.norm(x)))
-            await asyncio.sleep(0)
-    temp = await f(x)
     # Estimate the gradient and its square.
     b1 = 0.0
     b2 = 0.0
     gx = np.zeros_like(x)
     slow_gx = np.zeros_like(x)
     square_gx = np.zeros_like(x)
-    for _ in range(isqrt(isqrt(x.size + 100) + 100)):
+    for i in range(isqrt(isqrt(x.size + 100) + 100)):
         # Compute df/dx in random directions.
-        dx = rng.choice((-1.0, 1.0), x.shape)
-        dx *= px
-        y1, y2 = await asyncio.gather(f(x + dx), f(x - dx))
+        if px is int:
+            dx = rng.choice((-0.5, 0.5), x.shape)
+            y1, y2 = await asyncio.gather(f(x + dx, casting="unsafe", out=x_temp1), f(np.rint(x - dx, casting="unsafe", out=x_temp2)))
+        else:
+            dx = rng.choice((-1.0, 1.0), x.shape) / (1 + i)
+            dx *= px
+            y1, y2 = await asyncio.gather(f(x + dx), f(x - dx))
         df_dx = (y1 - y2) * 0.5 / dx
         # Update the gradients.
         b1 += m1 * (1 - b1)
@@ -426,10 +356,18 @@ async def minimize(
         # Estimate the next point.
         x_next = x - lr * dx
         # Compute df/dx in at the next point.
-        dx = rng.choice((-1.0, 1.0), x.shape)
-        dx *= px / (1 + px_decay * i) ** px_power
-        dx /= np.sqrt(square_gx / b2 + epsilon)
-        y1, y2 = await asyncio.gather(f(x_next + dx), f(x_next - dx))
+        if px is int:
+            dx = rng.choice((-0.5, 0.5), x.shape)
+            y1, y2 = await asyncio.gather(
+                f(np.rint(x_next + dx, casting="unsafe", out=x_temp1)),
+                f(np.rint(x_next - dx, casting="unsafe", out=x_temp2)),
+            )
+        else:
+            dx = (lr / m1 * px / (1 + px_decay * i) ** px_power) * np.linalg.norm(dx)
+            if adam:
+                dx /= np.sqrt(square_gx / b2 + epsilon)
+            dx *= rng.choice((-1.0, 1.0), x.shape)
+            y1, y2 = await asyncio.gather(f(x_next + dx), f(x_next - dx))
         df = (y1 - y2) / 2
         df_dx = dx * (df * sqrt(x.size) / np.linalg.norm(dx) ** 2)
         # Update the gradients.
@@ -448,13 +386,6 @@ async def minimize(
         bn += m2 * (1 - bn)
         y += m2 * (y3 - y)
         noise += m2 * ((y3 - y6) ** 2 + 1e-64 * (abs(y3) + abs(y6)) - noise)
-        # Update `px` depending on the noise and gradient.
-        # `dx` is dangerously small, so `px` should be increased.
-        if (y1 - y2) ** 2 < 8 * noise / bn and px < 1e-8 + np.linalg.norm(x):
-            px *= 1.2
-        # `dx` can be safely decreased, so `px` should be decreased.
-        elif px > 1e-8 * (1 + 0.25 * np.linalg.norm(x)):
-            px /= 1.1
         # Perform line search.
         # Adjust the learning rate towards learning rates which give good results.
         if y3 - 0.25 * sqrt(noise / bn) < min(y4, y5):
@@ -493,4 +424,7 @@ async def minimize(
         square_gx *= m2 * (1 - m2) / b2
         b2 = m2 * (1 - m2)
         lr /= 16 * improvement_fails
+    if px is int:
+        x_best = np.rint(x_best, casting="unsafe", out=x_temp1)
+        x = np.rint(x, casting="unsafe", out=x_temp2)
     return x_best if y_best - 0.25 * sqrt(noise / bn) < min(*(await asyncio.gather(f(x), f(x)))) else x

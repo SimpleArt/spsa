@@ -1,3 +1,4 @@
+from math import pi
 from typing import Iterator, Tuple, Union, overload
 
 import numpy as np
@@ -37,16 +38,14 @@ def regression(a: ArrayLike, b: ArrayLike, /, *, repeat: bool = True) -> Union[I
     rng = np.random.default_rng()
     if repeat:
         while True:
-            t = rng.uniform(-1, 1, mean.shape)
-            t /= np.sqrt(np.abs(t))
+            t = np.cos(pi * rng.random(mean.shape))
             t *= deviation
             t += mean
             yield t
             yield t
     else:
         while True:
-            t = rng.uniform(-1, 1, mean.shape)
-            t /= np.sqrt(np.abs(t))
+            t = np.cos(pi * rng.random(mean.shape))
             t *= deviation
             t += mean
             yield t

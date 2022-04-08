@@ -1,6 +1,6 @@
 import operator
 from math import isinf, isnan
-from typing import Callable, Optional, Sequence, SupportsFloat, SupportsIndex, TypedDict, Union
+from typing import Callable, Optional, Sequence, SupportsFloat, SupportsIndex, Type, TypedDict, Union
 
 import numpy as np
 
@@ -40,7 +40,7 @@ def type_check(
     lr: Optional[float],
     lr_decay: float,
     lr_power: float,
-    px: Optional[float],
+    px: Union[float, Type[int]],
     px_decay: float,
     px_power: float,
     momentum: float,
@@ -64,7 +64,7 @@ def type_check(
     if lr is not None:
         names = ("lr", *names)
         values = (lr, *values)
-    if px is not None:
+    if px is not int:
         names = (*names, "px")
         values = (*values, px)
     names = (*names, "px_decay", "px_power", "momentum", "beta", "epsilon")

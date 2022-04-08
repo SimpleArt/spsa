@@ -118,6 +118,7 @@ def maximize(
     y_best = y / bn
     x_best = x.copy()
     # Track how many times the solution fails to improve.
+    momentum_fails = 0
     consecutive_fails = 0
     improvement_fails = 0
     # Generate initial iteration.
@@ -158,6 +159,10 @@ def maximize(
             y2 = f(x_next - dx)
         df = (y1 - y2) / 2
         df_dx = dx * (df * sqrt(x.size) / np.linalg.norm(dx) ** 2)
+        # Update the momentum.
+        if (df_dx.flatten() / np.linalg.norm(df_dx)) @ (gx.flatten() / np.linalg.norm(gx)) < 0.5 / (1 + 0.1 * momentum_fails) ** 0.3 - 1:
+            momentum_fails += 1
+            m1 = (1.0 - momentum) / sqrt(1 + 0.1 * momentum_fails)
         # Update the gradients.
         b1 += m1 * (1 - b1)
         b2 += m2 * (1 - b2)
@@ -386,6 +391,7 @@ def minimize(
     y_best = y / bn
     x_best = x.copy()
     # Track how many times the solution fails to improve.
+    momentum_fails = 0
     consecutive_fails = 0
     improvement_fails = 0
     # Generate initial iteration.
@@ -426,6 +432,10 @@ def minimize(
             y2 = f(x_next - dx)
         df = (y1 - y2) / 2
         df_dx = dx * (df * sqrt(x.size) / np.linalg.norm(dx) ** 2)
+        # Update the momentum.
+        if (df_dx.flatten() / np.linalg.norm(df_dx)) @ (gx.flatten() / np.linalg.norm(gx)) < 0.5 / (1 + 0.1 * momentum_fails) ** 0.3 - 1:
+            momentum_fails += 1
+            m1 = (1.0 - momentum) / sqrt(1 + 0.1 * momentum_fails)
         # Update the gradients.
         b1 += m1 * (1 - b1)
         b2 += m2 * (1 - b2)

@@ -355,7 +355,8 @@ def minimize(
     # Estimate the gradient and its square.
     b1 = 0.0
     b2 = 0.0
-    gx = np.zeros_like(x)
+    gx1 = np.zeros_like(x)
+    gx2 = np.zeros_like(x)
     slow_gx = np.zeros_like(x)
     square_gx = np.zeros_like(x)
     for i in range(isqrt(x.size + 100)):
@@ -370,14 +371,15 @@ def minimize(
         # Update the gradients.
         b1 += m1 * (1 - b1)
         b2 += m2 * (1 - b2)
-        gx += m1 * (df_dx - gx)
+        gx1 += m1 * (df_dx - gx1)
+        gx2 += m1 * (gx1 / b1 - gx2)
         slow_gx += m2 * (df_dx - slow_gx)
         square_gx += m2 * ((slow_gx / b2) ** 2 - square_gx)
     # Estimate the learning rate.
     if lr is None:
         lr = 1e-5
         # Increase the learning rate while it is safe to do so.
-        dx = 3 / b1 * gx
+        dx = 10 / (sqrt(m1) * b1) * (gx1 + (gx1 - gx2))
         if adam:
             dx /= np.sqrt(square_gx / b2 + epsilon)
         for _ in range(3):
@@ -406,12 +408,12 @@ def minimize(
         beta1=b1,
         beta2=b2,
         noise=noise,
-        gradient=immutable_view(gx),
+        gradient=immutable_view(gx1 + (gx1 - gx2)),
         slow_gradient=immutable_view(slow_gx),
         square_gradient=immutable_view(square_gx),
     )
     # Initial step size.
-    dx = gx / b1
+    dx = (gx1 + (gx1 - gx2)) / b1
     if adam:
         dx /= np.sqrt(square_gx / b2 + epsilon)
     # Run the number of iterations.
@@ -424,7 +426,7 @@ def minimize(
             y1 = f(np.rint(x_next + dx, casting="unsafe", out=x_temp))
             y2 = f(np.rint(x_next - dx, casting="unsafe", out=x_temp))
         else:
-            dx = (lr / m1 * px / (1 + px_decay * i) ** px_power) * np.linalg.norm(dx)
+            dx = (lr / sqrt(m1) * px / (1 + px_decay * i) ** px_power) * np.linalg.norm(dx)
             if adam:
                 dx /= np.sqrt(square_gx / b2 + epsilon)
             dx *= rng.choice((-1.0, 1.0), x.shape)
@@ -433,17 +435,18 @@ def minimize(
         df = (y1 - y2) / 2
         df_dx = dx * (df * sqrt(x.size) / np.linalg.norm(dx) ** 2)
         # Update the momentum.
-        if (df_dx.flatten() / np.linalg.norm(df_dx)) @ (gx.flatten() / np.linalg.norm(gx)) < 0.5 / (1 + 0.1 * momentum_fails) ** 0.3 - 1:
+        if (df_dx.flatten() / np.linalg.norm(df_dx)) @ ((gx1 + (gx1 - gx2)).flatten() / np.linalg.norm(gx1 + (gx1 - gx2))) < -0.2:
             momentum_fails += 1
-            m1 = (1.0 - momentum) / sqrt(1 + 0.1 * momentum_fails)
+            m1 = (1.0 - momentum) / sqrt(1 + 0.3 * momentum_fails)
         # Update the gradients.
         b1 += m1 * (1 - b1)
         b2 += m2 * (1 - b2)
-        gx += m1 * (df_dx - gx)
+        gx1 += m1 * (df_dx - gx1)
+        gx2 += m1 * (gx1 / b1 - gx2)
         slow_gx += m2 * (df_dx - slow_gx)
         square_gx += m2 * ((slow_gx / b2) ** 2 - square_gx)
         # Compute the step size.
-        dx = gx / (b1 * (1 + lr_decay * i) ** lr_power)
+        dx = (gx1 + (gx1 - gx2)) / (b1 * (1 + lr_decay * i) ** lr_power)
         if adam:
             dx /= np.sqrt(square_gx / b2 + epsilon)
         # Sample points.
@@ -487,7 +490,7 @@ def minimize(
             beta1=b1,
             beta2=b2,
             noise=noise,
-            gradient=immutable_view(gx),
+            gradient=immutable_view(gx1 + (gx1 - gx2)),
             slow_gradient=immutable_view(slow_gx),
             square_gradient=immutable_view(square_gx),
         )
@@ -502,8 +505,9 @@ def minimize(
         noise *= m2 * (1 - m2) / bn
         y = m2 * (1 - m2) * y_best
         bn = m2 * (1 - m2)
+        gx1 = m1 * (1 - m1) / b1 * gx2
+        gx2 = m1 * (1 - m1) / b2 * slow_gx
         b1 = m1 * (1 - m1)
-        gx = b1 / b2 * slow_gx
         slow_gx *= m2 * (1 - m2) / b2
         square_gx *= m2 * (1 - m2) / b2
         b2 = m2 * (1 - m2)

@@ -458,7 +458,7 @@ def minimize(
             y1 = f(np.rint(x_next + dx, casting="unsafe", out=x_temp))
             y2 = f(np.rint(x_next - dx, casting="unsafe", out=x_temp))
         else:
-            dx = (lr / m1 * px / (1 + px_decay * i) ** px_power) * np.linalg.norm(dx)
+            dx = (lr / sqrt(m1) * px / (1 + px_decay * i) ** px_power) * np.linalg.norm(dx)
             if adam:
                 dx /= np.sqrt(square_gx / b2 + epsilon)
             dx *= rng.choice((-1.0, 1.0), x.shape)
@@ -467,9 +467,9 @@ def minimize(
         df = (y1 - y2) / 2
         df_dx = dx * (df * sqrt(x.size) / np.linalg.norm(dx) ** 2)
         # Update the momentum.
-        if (df_dx.flatten() / np.linalg.norm(df_dx)) @ (gx.flatten() / np.linalg.norm(gx)) < 0.5 / (1 + 0.1 * momentum_fails) ** 0.3 - 1:
+        if (df_dx.flatten() / np.linalg.norm(df_dx)) @ (gx.flatten() / np.linalg.norm(gx)) < 1.5 / sqrt(1 + 0.1 * momentum_fails) - 1:
             momentum_fails += 1
-            m1 = (1.0 - momentum) / sqrt(1 + 0.1 * momentum_fails)
+            m1 = (1.0 - momentum) / (1 + 0.1 * momentum_fails) ** 0.75
         # Update the gradients.
         b1 += m1 * (1 - b1)
         b2 += m2 * (1 - b2)
